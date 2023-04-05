@@ -353,7 +353,7 @@ class VisionTransformer(nn.Module):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-    def forward_features(self, x):
+    def forward_features(self, x, prompt=None):
         B = x.shape[0]
         x = self.patch_embed(x)
 
@@ -361,7 +361,10 @@ class VisionTransformer(nn.Module):
         x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
-
+        if prompt is not None:
+            # print(prompt.prompt.size(), x.size())
+            batched_prompt = prompt.prompt.expand(x.size(0), prompt.prompt.size(1), prompt.prompt.size(2))
+            x = torch.cat((batched_prompt, x), dim=1)        
         for blk in self.blocks:
             x = blk(x)
 
@@ -369,8 +372,11 @@ class VisionTransformer(nn.Module):
         x = self.pre_logits(x)
         return x
 
-    def forward(self, x):
-        x = self.forward_features(x)
+    def forward(self, x, prompt=None):
+        if prompt is not None:
+            x = self.forward_features(x, prompt)
+        else:
+            x = self.forward_features(x)
         x = self.head(x)
         return x
 

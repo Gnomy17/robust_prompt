@@ -23,8 +23,8 @@ if args.PRM:
     args.out_dir = args.out_dir + "_PRM"
 if args.scratch:
     args.out_dir = args.out_dir + "_no_pretrained"
-if args.load:
-    args.out_dir = args.out_dir + "_load"
+# if args.load:
+#     args.out_dir = args.out_dir + "_load"
 
 
 args.out_dir = args.out_dir + "/weight_decay_{:.6f}/".format(
@@ -142,9 +142,36 @@ def train_adv(args, model, ds_train, ds_test, logger):
         criterion = nn.CrossEntropyLoss()
 
     steps_per_epoch = len(train_loader)
-
-    opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-
+    
+    if args.prompted or args.prompt_too:
+        from model_for_cifar.prompt import Prompt
+        prompt = Prompt(args.prompt_length, 768)
+        if args.load:
+            prompt.load_state_dict(checkpoint['prompt'])
+        params = []
+        prompt.cuda()
+        prompt.train()
+        for p in prompt.parameters():
+            params.append(p)
+        for p in model.module.head.parameters():
+            params.append(p)
+        
+        # if args.prompt_too:
+        #     for p in model.parameters():
+        #         params.append(p)
+            
+        if args.optim == 'sgd':
+            opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
+        elif args.optim == 'adam':
+            opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
+    else:
+        if args.optim == 'sgd':
+            opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+        elif args.optim == 'adam':
+            opt = torch.optim.Adam(model.parameters(), lr = args.lr_max, weight_decay=args.weight_decay)
+    if args.load:
+        opt.load_state_dict(checkpoint['opt'])
+        logger.info("Resuming at epoch {}".format(checkpoint['epoch'] + 1))
     if args.delta_init == 'previous':
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
     lr_steps = args.epochs * steps_per_epoch
@@ -155,11 +182,14 @@ def train_adv(args, model, ds_train, ds_test, logger):
             return args.lr_max*0.1
         else:
             return args.lr_max * 0.01
-    epoch_s = 0
-    evaluate_natural(args, model, test_loader, verbose=False)
+    epoch_s = 0 if not args.load else (checkpoint['epoch'])
+    
     for epoch in tqdm.tqdm(range(epoch_s + 1, args.epochs + 1)):
+        evaluate_natural(args, model, test_loader, verbose=False)
         train_loss = 0
         train_acc = 0
+        train_clean = 0
+        train_prompted = 0
         train_n = 0
 
         def train_step(X, y,t,mixup_fn):
@@ -209,7 +239,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 y = y.cuda()
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
-                def pgd_attack():
+                def pgd_attack(prompt=None):
                     model.eval()
                     epsilon = epsilon_base.cuda()
                     delta = torch.zeros_like(X).cuda()
@@ -234,7 +264,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                                 c * args.patch:(c + 1) * args.patch] = 0
                         if args.PRM:
                             delta = delta * add_noise_mask
-                        output = model(X + delta)
+                        if prompt is not None:
+                            output = model(X + delta, prompt)
+                        else:    
+                            output = model(X + delta)
                         loss = criterion(output, y)
                         grad = torch.autograd.grad(loss, delta)[0].detach()
                         delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
@@ -247,7 +280,23 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     return delta
                 delta = pgd_attack()
                 X_adv = X + delta
-                output = model(X_adv)
+                if args.prompted or args.prompt_too:
+                    output = model(X_adv, prompt)
+                else:
+                    output = model(X_adv)
+                
+                loss = criterion(output, y)
+                # output = model(X, prompt)
+            elif args.method == 'natural':
+                X = X.cuda()
+                y = y.cuda()
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                if args.prompted or args.prompt_too:
+                    output = model(X, prompt)
+                else:
+                    output = model(X)
+                # print(output.shape, y.shape)
                 loss = criterion(output, y)
             elif args.method == 'TRADES':
                 X = X.cuda()
@@ -349,8 +398,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
             (loss / args.accum_steps).backward()
             if args.method == 'AT':
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
+                if args.prompted:
+                    delta = pgd_attack(prompt).detach()
+                    out = model(X+delta, prompt)
+                    p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean()
+                    return loss, acc, y, p_acc
             else:
-                acc = (output.max(1)[1] == y).float().mean()
+                acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
             return loss, acc,y
 
         for step, (X, y) in enumerate(train_loader):
@@ -361,19 +415,37 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 y_ = y[t * batch_size:(t + 1) * batch_size].cuda()  # .max(dim=-1).indices
                 if len(X_) == 0:
                     break
-                loss, acc,y = train_step(X,y,epoch_now,mixup_fn)
+                # print(y.size())
+                if args.prompted:
+                    loss, acc,y, p_acc = train_step(X,y,epoch_now,mixup_fn)
+                else:
+                    loss, acc, y =  train_step(X,y,epoch_now,mixup_fn)
+                    p_acc = acc
+                # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
                 train_acc += acc.item() * y_.size(0)
+                def clean_acc(X, y):
+                    X = X.cuda()
+                    y = y.cuda()
+                    if args.prompted or args.prompt_too:
+                        output = model(X, prompt)
+                    else:
+                        output = model(X)
+                    acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
+                    return acc
+                    # print(output.shape, y.shape)
+                train_prompted += p_acc.item() * y_.size(0)
+                train_clean += clean_acc(X, y).item() * y_.size(0)
                 train_n += y_.size(0)
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
             opt.step()
             opt.zero_grad()
 
             if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
-                logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f}'.format(
+                logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
                     epoch, step + 1, len(train_loader),
                     opt.param_groups[0]['lr'],
-                           train_loss / train_n, train_acc / train_n
+                           train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                 ))
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
@@ -388,8 +460,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
             with open(os.path.join(args.out_dir, 'test_acc.txt'), 'a') as new:
                 meter_test = evaluate_natural(args, model, test_loader, verbose=False)
                 new.write('{}\n'.format(meter_test))
-        if epoch == args.epochs:
-            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict()}, path)
+        if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
+            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too) else prompt.state_dict()}, path)
             logger.info('Checkpoint saved to {}'.format(path))
 
 

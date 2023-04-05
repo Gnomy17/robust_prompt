@@ -2,8 +2,8 @@ import argparse
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='vit_base_patch16_224')
-    parser.add_argument('--method', type=str, default='pgd',
-                        choices=['AT', 'TRADES', 'MART'])
+    parser.add_argument('--method', type=str, default='AT',
+                        choices=['AT', 'TRADES', 'MART', 'natural'])
     parser.add_argument('--dataset', type=str, default="cifar")
     parser.add_argument('--run-dummy', action='store_true')
     parser.add_argument('--accum-steps', type=int, default=1)
@@ -11,8 +11,10 @@ def get_args():
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--log-interval', type=int, default=10)
     parser.add_argument('--batch-size', default=64, type=int)
+    parser.add_argument('--chkpnt_interval', type=int, default=10)
     parser.add_argument('--AA-batch', default=128, type=int,help="Batch size for AA.")
     parser.add_argument('--crop', type=int, default=32)
+    parser.add_argument('--optim', type=str, default='sgd', choices=['adam', 'sgd'])
     parser.add_argument('--resize', type=int, default=32)
     parser.add_argument('--load', action='store_true')
     parser.add_argument('--load_path', default='', type=str)
@@ -22,6 +24,10 @@ def get_args():
     parser.add_argument('--patch', type=int, default=4)
     parser.add_argument('--ARD', action='store_true')
     parser.add_argument('--PRM', action='store_true')
+    parser.add_argument('--prompted', action='store_true')
+    parser.add_argument('--prompt_too', action='store_true')
+    parser.add_argument('--prompt_length', type=int, default=100)
+    parser.add_argument('--train_head', action='store_true')
     parser.add_argument('--drop-rate', default=1.0, type=float)
     parser.add_argument("--beta", type=float, default=6.0)
     parser.add_argument('--eval-restarts', type=int, default=1)

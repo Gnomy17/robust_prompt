@@ -1,0 +1,1777 @@
+INFO     2023-03-31 12:23:34,087 Namespace(AA_batch=128, ARD=False, PRM=False, accum_steps=1, alpha=2, attack_iters=10, batch_size=64, beta=6.0, chkpnt_interval=10, crop=32, cutmix=1.0, cutmix_minmax=None, data_dir='./data', dataset='cifar', delta_init='random', drop_rate=1.0, epochs=40, epsilon=8, eval_iters=10, eval_restarts=1, grad_clip=1.0, labelsmoothvalue=0, load=False, load_path='', log_interval=10, lr_max=0.1, lr_min=0.0, method='natural', mixup=0.8, mixup_mode='batch', mixup_prob=0.3, mixup_switch_prob=0.5, model='vit_base_patch16_224', momentum=0.9, n_w=10, optim='sgd', out_dir='./natural_cifar_vit_base_patch16_224_natural_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/', patch=4, prompt_length=100, prompt_too=False, prompted=True, resize=32, run_dummy=False, scratch=False, seed=0, test=False, train_head=False, weight_decay=0.0001)
+INFO     2023-03-31 12:23:52,083 ModelDataParallel(
+  (module): VisionTransformer(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 768, kernel_size=(4, 4), stride=(4, 4))
+    )
+    (pos_drop): Dropout(p=0.0, inplace=False)
+    (blocks): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (1): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (2): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (3): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (4): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (5): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (6): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (7): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (8): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (9): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (10): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (11): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+    (pre_logits): Identity()
+    (head): Linear(in_features=768, out_features=10, bias=True)
+  )
+)
+INFO     2023-03-31 12:24:24,209 Evaluation test_loss=2.3636 test_acc=0.1100
+INFO     2023-03-31 12:26:50,769 Namespace(AA_batch=128, ARD=False, PRM=False, accum_steps=1, alpha=2, attack_iters=10, batch_size=64, beta=6.0, chkpnt_interval=10, crop=32, cutmix=1.0, cutmix_minmax=None, data_dir='./data', dataset='cifar', delta_init='random', drop_rate=1.0, epochs=40, epsilon=8, eval_iters=10, eval_restarts=1, grad_clip=1.0, labelsmoothvalue=0, load=False, load_path='', log_interval=10, lr_max=0.1, lr_min=0.0, method='natural', mixup=0.8, mixup_mode='batch', mixup_prob=0.3, mixup_switch_prob=0.5, model='vit_base_patch16_224', momentum=0.9, n_w=10, optim='sgd', out_dir='./natural_cifar_vit_base_patch16_224_natural_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/', patch=4, prompt_length=100, prompt_too=False, prompted=True, resize=32, run_dummy=False, scratch=False, seed=0, test=False, train_head=False, weight_decay=0.0001)
+INFO     2023-03-31 12:26:55,337 ModelDataParallel(
+  (module): VisionTransformer(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 768, kernel_size=(4, 4), stride=(4, 4))
+    )
+    (pos_drop): Dropout(p=0.0, inplace=False)
+    (blocks): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (1): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (2): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (3): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (4): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (5): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (6): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (7): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (8): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (9): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (10): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (11): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+    (pre_logits): Identity()
+    (head): Linear(in_features=768, out_features=10, bias=True)
+  )
+)
+INFO     2023-03-31 12:27:22,499 Evaluation test_loss=2.3636 test_acc=0.1100
+INFO     2023-03-31 12:30:39,668 Namespace(AA_batch=128, ARD=False, PRM=False, accum_steps=1, alpha=2, attack_iters=10, batch_size=64, beta=6.0, chkpnt_interval=10, crop=32, cutmix=0.0, cutmix_minmax=None, data_dir='./data', dataset='cifar', delta_init='random', drop_rate=1.0, epochs=40, epsilon=8, eval_iters=10, eval_restarts=1, grad_clip=1.0, labelsmoothvalue=0, load=False, load_path='', log_interval=10, lr_max=0.1, lr_min=0.0, method='natural', mixup=0.0, mixup_mode='batch', mixup_prob=0.3, mixup_switch_prob=0.5, model='vit_base_patch16_224', momentum=0.9, n_w=10, optim='sgd', out_dir='./natural_cifar_vit_base_patch16_224_natural_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/', patch=4, prompt_length=100, prompt_too=False, prompted=True, resize=32, run_dummy=False, scratch=False, seed=0, test=False, train_head=False, weight_decay=0.0001)
+INFO     2023-03-31 12:30:44,225 ModelDataParallel(
+  (module): VisionTransformer(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 768, kernel_size=(4, 4), stride=(4, 4))
+    )
+    (pos_drop): Dropout(p=0.0, inplace=False)
+    (blocks): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (1): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (2): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (3): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (4): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (5): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (6): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (7): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (8): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (9): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (10): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (11): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+    (pre_logits): Identity()
+    (head): Linear(in_features=768, out_features=10, bias=True)
+  )
+)
+INFO     2023-03-31 12:31:11,143 Evaluation test_loss=2.3636 test_acc=0.1100
+INFO     2023-03-31 12:32:38,573 Namespace(AA_batch=128, ARD=False, PRM=False, accum_steps=1, alpha=2, attack_iters=10, batch_size=64, beta=6.0, chkpnt_interval=10, crop=32, cutmix=0.0, cutmix_minmax=None, data_dir='./data', dataset='cifar', delta_init='random', drop_rate=1.0, epochs=40, epsilon=8, eval_iters=10, eval_restarts=1, grad_clip=1.0, labelsmoothvalue=0, load=False, load_path='', log_interval=10, lr_max=0.1, lr_min=0.0, method='natural', mixup=0.0, mixup_mode='batch', mixup_prob=0.3, mixup_switch_prob=0.5, model='vit_base_patch16_224', momentum=0.9, n_w=10, optim='sgd', out_dir='./natural_cifar_vit_base_patch16_224_natural_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/', patch=4, prompt_length=100, prompt_too=False, prompted=True, resize=32, run_dummy=False, scratch=False, seed=0, test=False, train_head=False, weight_decay=0.0001)
+INFO     2023-03-31 12:32:43,139 ModelDataParallel(
+  (module): VisionTransformer(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 768, kernel_size=(4, 4), stride=(4, 4))
+    )
+    (pos_drop): Dropout(p=0.0, inplace=False)
+    (blocks): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (1): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (2): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (3): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (4): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (5): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (6): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (7): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (8): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (9): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (10): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (11): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+    (pre_logits): Identity()
+    (head): Linear(in_features=768, out_features=10, bias=True)
+  )
+)
+INFO     2023-03-31 12:33:10,158 Evaluation test_loss=2.3636 test_acc=0.1100
+INFO     2023-03-31 12:33:21,738 Training epoch 1 step 10/782, lr 0.1000 loss 2.2556 acc 0.1656
+INFO     2023-03-31 12:33:32,189 Training epoch 1 step 20/782, lr 0.1000 loss 1.9962 acc 0.2867
+INFO     2023-03-31 12:33:42,637 Training epoch 1 step 30/782, lr 0.1000 loss 1.7688 acc 0.3714
+INFO     2023-03-31 12:33:53,086 Training epoch 1 step 40/782, lr 0.1000 loss 1.5959 acc 0.4344
+INFO     2023-03-31 12:34:03,534 Training epoch 1 step 50/782, lr 0.1000 loss 1.4486 acc 0.4909
+INFO     2023-03-31 12:34:13,953 Training epoch 1 step 60/782, lr 0.1000 loss 1.3451 acc 0.5302
+INFO     2023-03-31 12:34:24,370 Training epoch 1 step 70/782, lr 0.1000 loss 1.2567 acc 0.5632
+INFO     2023-03-31 12:34:34,830 Training epoch 1 step 80/782, lr 0.1000 loss 1.1909 acc 0.5895
+INFO     2023-03-31 12:34:45,268 Training epoch 1 step 90/782, lr 0.1000 loss 1.1327 acc 0.6104
+INFO     2023-03-31 12:34:55,692 Training epoch 1 step 100/782, lr 0.1000 loss 1.0863 acc 0.6277
+INFO     2023-03-31 12:35:06,140 Training epoch 1 step 110/782, lr 0.1000 loss 1.0416 acc 0.6409
+INFO     2023-03-31 12:35:16,567 Training epoch 1 step 120/782, lr 0.1000 loss 1.0018 acc 0.6562
+INFO     2023-03-31 12:35:27,044 Training epoch 1 step 130/782, lr 0.1000 loss 0.9742 acc 0.6665
+INFO     2023-03-31 12:35:37,486 Training epoch 1 step 140/782, lr 0.1000 loss 0.9433 acc 0.6775
+INFO     2023-03-31 12:35:47,929 Training epoch 1 step 150/782, lr 0.1000 loss 0.9209 acc 0.6852
+INFO     2023-03-31 12:35:58,357 Training epoch 1 step 160/782, lr 0.1000 loss 0.8994 acc 0.6927
+INFO     2023-03-31 12:36:08,783 Training epoch 1 step 170/782, lr 0.1000 loss 0.8750 acc 0.7012
+INFO     2023-03-31 12:36:19,212 Training epoch 1 step 180/782, lr 0.1000 loss 0.8571 acc 0.7076
+INFO     2023-03-31 12:36:29,658 Training epoch 1 step 190/782, lr 0.1000 loss 0.8393 acc 0.7140
+INFO     2023-03-31 12:36:40,118 Training epoch 1 step 200/782, lr 0.1000 loss 0.8235 acc 0.7199
+INFO     2023-03-31 12:36:50,561 Training epoch 1 step 210/782, lr 0.1000 loss 0.8076 acc 0.7251
+INFO     2023-03-31 12:37:00,987 Training epoch 1 step 220/782, lr 0.1000 loss 0.7955 acc 0.7295
+INFO     2023-03-31 12:37:11,422 Training epoch 1 step 230/782, lr 0.1000 loss 0.7863 acc 0.7319
+INFO     2023-03-31 12:37:21,870 Training epoch 1 step 240/782, lr 0.1000 loss 0.7752 acc 0.7357
+INFO     2023-03-31 12:37:32,306 Training epoch 1 step 250/782, lr 0.1000 loss 0.7630 acc 0.7392
+INFO     2023-03-31 12:37:42,734 Training epoch 1 step 260/782, lr 0.1000 loss 0.7528 acc 0.7434
+INFO     2023-03-31 12:37:53,164 Training epoch 1 step 270/782, lr 0.1000 loss 0.7428 acc 0.7470
+INFO     2023-03-31 12:38:03,583 Training epoch 1 step 280/782, lr 0.1000 loss 0.7320 acc 0.7508
+INFO     2023-03-31 12:38:14,003 Training epoch 1 step 290/782, lr 0.1000 loss 0.7248 acc 0.7532
+INFO     2023-03-31 12:38:24,419 Training epoch 1 step 300/782, lr 0.1000 loss 0.7167 acc 0.7555
+INFO     2023-03-31 12:38:34,850 Training epoch 1 step 310/782, lr 0.1000 loss 0.7070 acc 0.7586
+INFO     2023-03-31 12:38:45,284 Training epoch 1 step 320/782, lr 0.1000 loss 0.6991 acc 0.7613
+INFO     2023-03-31 12:38:55,714 Training epoch 1 step 330/782, lr 0.1000 loss 0.6925 acc 0.7638
+INFO     2023-03-31 12:39:06,173 Training epoch 1 step 340/782, lr 0.1000 loss 0.6870 acc 0.7660
+INFO     2023-03-31 12:39:16,608 Training epoch 1 step 350/782, lr 0.1000 loss 0.6792 acc 0.7686
+INFO     2023-03-31 12:39:27,039 Training epoch 1 step 360/782, lr 0.1000 loss 0.6734 acc 0.7705
+INFO     2023-03-31 12:39:37,479 Training epoch 1 step 370/782, lr 0.1000 loss 0.6660 acc 0.7730
+INFO     2023-03-31 12:39:47,907 Training epoch 1 step 380/782, lr 0.1000 loss 0.6602 acc 0.7750
+INFO     2023-03-31 12:39:58,343 Training epoch 1 step 390/782, lr 0.1000 loss 0.6544 acc 0.7766
+INFO     2023-03-31 12:40:08,769 Training epoch 1 step 400/782, lr 0.1000 loss 0.6480 acc 0.7786
+INFO     2023-03-31 12:40:19,222 Training epoch 1 step 410/782, lr 0.1000 loss 0.6446 acc 0.7795
+INFO     2023-03-31 12:40:29,641 Training epoch 1 step 420/782, lr 0.1000 loss 0.6403 acc 0.7807
+INFO     2023-03-31 12:40:40,083 Training epoch 1 step 430/782, lr 0.1000 loss 0.6353 acc 0.7822
+INFO     2023-03-31 12:40:50,552 Training epoch 1 step 440/782, lr 0.1000 loss 0.6304 acc 0.7841
+INFO     2023-03-31 12:41:01,010 Training epoch 1 step 450/782, lr 0.1000 loss 0.6246 acc 0.7860
+INFO     2023-03-31 12:41:11,446 Training epoch 1 step 460/782, lr 0.1000 loss 0.6201 acc 0.7877
+INFO     2023-03-31 12:41:21,854 Training epoch 1 step 470/782, lr 0.1000 loss 0.6150 acc 0.7896
+INFO     2023-03-31 12:41:32,308 Training epoch 1 step 480/782, lr 0.1000 loss 0.6113 acc 0.7909
+INFO     2023-03-31 12:41:42,734 Training epoch 1 step 490/782, lr 0.1000 loss 0.6079 acc 0.7923
+INFO     2023-03-31 12:41:53,158 Training epoch 1 step 500/782, lr 0.1000 loss 0.6037 acc 0.7938
+INFO     2023-03-31 12:42:03,608 Training epoch 1 step 510/782, lr 0.1000 loss 0.6010 acc 0.7951
+INFO     2023-03-31 12:42:14,029 Training epoch 1 step 520/782, lr 0.1000 loss 0.5983 acc 0.7959
+INFO     2023-03-31 12:42:24,491 Training epoch 1 step 530/782, lr 0.1000 loss 0.5959 acc 0.7967
+INFO     2023-03-31 12:42:34,929 Training epoch 1 step 540/782, lr 0.1000 loss 0.5934 acc 0.7973
+INFO     2023-03-31 12:42:45,359 Training epoch 1 step 550/782, lr 0.1000 loss 0.5894 acc 0.7988
+INFO     2023-03-31 12:42:55,782 Training epoch 1 step 560/782, lr 0.1000 loss 0.5861 acc 0.7999
+INFO     2023-03-31 12:43:06,214 Training epoch 1 step 570/782, lr 0.1000 loss 0.5830 acc 0.8012
+INFO     2023-03-31 12:43:16,641 Training epoch 1 step 580/782, lr 0.1000 loss 0.5805 acc 0.8023
+INFO     2023-03-31 12:43:27,080 Training epoch 1 step 590/782, lr 0.1000 loss 0.5773 acc 0.8033
+INFO     2023-03-31 12:43:37,499 Training epoch 1 step 600/782, lr 0.1000 loss 0.5746 acc 0.8044
+INFO     2023-03-31 12:43:47,930 Training epoch 1 step 610/782, lr 0.1000 loss 0.5723 acc 0.8050
+INFO     2023-03-31 12:43:58,385 Training epoch 1 step 620/782, lr 0.1000 loss 0.5704 acc 0.8060
+INFO     2023-03-31 12:44:08,827 Training epoch 1 step 630/782, lr 0.1000 loss 0.5676 acc 0.8068
+INFO     2023-03-31 12:44:19,255 Training epoch 1 step 640/782, lr 0.1000 loss 0.5649 acc 0.8078
+INFO     2023-03-31 12:44:29,691 Training epoch 1 step 650/782, lr 0.1000 loss 0.5613 acc 0.8088
+INFO     2023-03-31 12:44:40,124 Training epoch 1 step 660/782, lr 0.1000 loss 0.5583 acc 0.8099
+INFO     2023-03-31 12:44:50,557 Training epoch 1 step 670/782, lr 0.1000 loss 0.5556 acc 0.8108
+INFO     2023-03-31 12:45:00,987 Training epoch 1 step 680/782, lr 0.1000 loss 0.5520 acc 0.8120
+INFO     2023-03-31 12:45:11,416 Training epoch 1 step 690/782, lr 0.1000 loss 0.5490 acc 0.8134
+INFO     2023-03-31 12:45:21,871 Training epoch 1 step 700/782, lr 0.1000 loss 0.5477 acc 0.8139
+INFO     2023-03-31 12:45:32,305 Training epoch 1 step 710/782, lr 0.1000 loss 0.5465 acc 0.8144
+INFO     2023-03-31 12:45:42,724 Training epoch 1 step 720/782, lr 0.1000 loss 0.5452 acc 0.8150
+INFO     2023-03-31 12:45:53,183 Training epoch 1 step 730/782, lr 0.1000 loss 0.5435 acc 0.8158
+INFO     2023-03-31 12:46:03,635 Training epoch 1 step 740/782, lr 0.1000 loss 0.5401 acc 0.8171
+INFO     2023-03-31 12:46:14,079 Training epoch 1 step 750/782, lr 0.1000 loss 0.5376 acc 0.8179
+INFO     2023-03-31 12:46:24,400 Training epoch 1 step 760/782, lr 0.1000 loss 0.5352 acc 0.8186
+INFO     2023-03-31 12:46:34,705 Training epoch 1 step 770/782, lr 0.1000 loss 0.5331 acc 0.8193
+INFO     2023-03-31 12:46:45,020 Training epoch 1 step 780/782, lr 0.1000 loss 0.5310 acc 0.8201
+INFO     2023-03-31 12:46:46,342 Training epoch 1 step 782/782, lr 0.1000 loss 0.5307 acc 0.8202
+INFO     2023-03-31 12:46:57,830 Training epoch 2 step 10/782, lr 0.1000 loss 0.3388 acc 0.8812
+INFO     2023-03-31 12:47:08,277 Training epoch 2 step 20/782, lr 0.1000 loss 0.3156 acc 0.8914
+INFO     2023-03-31 12:47:18,743 Training epoch 2 step 30/782, lr 0.1000 loss 0.3132 acc 0.8922
+INFO     2023-03-31 12:47:29,203 Training epoch 2 step 40/782, lr 0.1000 loss 0.3204 acc 0.8906
+INFO     2023-03-31 12:47:39,645 Training epoch 2 step 50/782, lr 0.1000 loss 0.3320 acc 0.8884
+INFO     2023-03-31 12:47:50,096 Training epoch 2 step 60/782, lr 0.1000 loss 0.3405 acc 0.8859
+INFO     2023-03-31 12:48:00,549 Training epoch 2 step 70/782, lr 0.1000 loss 0.3460 acc 0.8821
+INFO     2023-03-31 12:48:10,991 Training epoch 2 step 80/782, lr 0.1000 loss 0.3447 acc 0.8828
+INFO     2023-03-31 12:48:21,428 Training epoch 2 step 90/782, lr 0.1000 loss 0.3458 acc 0.8823
+INFO     2023-03-31 12:48:31,894 Training epoch 2 step 100/782, lr 0.1000 loss 0.3492 acc 0.8819
+INFO     2023-03-31 12:48:42,351 Training epoch 2 step 110/782, lr 0.1000 loss 0.3474 acc 0.8822
+INFO     2023-03-31 12:48:52,788 Training epoch 2 step 120/782, lr 0.1000 loss 0.3456 acc 0.8831
+INFO     2023-03-31 12:49:03,255 Training epoch 2 step 130/782, lr 0.1000 loss 0.3517 acc 0.8805
+INFO     2023-03-31 12:49:13,689 Training epoch 2 step 140/782, lr 0.1000 loss 0.3559 acc 0.8795
+INFO     2023-03-31 12:49:24,125 Training epoch 2 step 150/782, lr 0.1000 loss 0.3497 acc 0.8810
+INFO     2023-03-31 12:49:34,540 Training epoch 2 step 160/782, lr 0.1000 loss 0.3543 acc 0.8804
+INFO     2023-03-31 12:49:45,001 Training epoch 2 step 170/782, lr 0.1000 loss 0.3525 acc 0.8805
+INFO     2023-03-31 12:49:55,453 Training epoch 2 step 180/782, lr 0.1000 loss 0.3537 acc 0.8809
+INFO     2023-03-31 12:50:05,895 Training epoch 2 step 190/782, lr 0.1000 loss 0.3490 acc 0.8828
+INFO     2023-03-31 12:50:16,347 Training epoch 2 step 200/782, lr 0.1000 loss 0.3475 acc 0.8834
+INFO     2023-03-31 12:50:26,796 Training epoch 2 step 210/782, lr 0.1000 loss 0.3455 acc 0.8839
+INFO     2023-03-31 12:50:37,228 Training epoch 2 step 220/782, lr 0.1000 loss 0.3467 acc 0.8837
+INFO     2023-03-31 12:50:47,645 Training epoch 2 step 230/782, lr 0.1000 loss 0.3465 acc 0.8838
+INFO     2023-03-31 12:50:58,156 Training epoch 2 step 240/782, lr 0.1000 loss 0.3460 acc 0.8842
+INFO     2023-03-31 12:51:08,591 Training epoch 2 step 250/782, lr 0.1000 loss 0.3470 acc 0.8841
+INFO     2023-03-31 12:51:19,039 Training epoch 2 step 260/782, lr 0.1000 loss 0.3454 acc 0.8846
+INFO     2023-03-31 12:51:29,476 Training epoch 2 step 270/782, lr 0.1000 loss 0.3452 acc 0.8850
+INFO     2023-03-31 12:51:39,962 Training epoch 2 step 280/782, lr 0.1000 loss 0.3456 acc 0.8849
+INFO     2023-03-31 12:51:50,406 Training epoch 2 step 290/782, lr 0.1000 loss 0.3453 acc 0.8849
+INFO     2023-03-31 12:52:00,843 Training epoch 2 step 300/782, lr 0.1000 loss 0.3469 acc 0.8846
+INFO     2023-03-31 13:23:01,762 Namespace(AA_batch=128, ARD=False, PRM=False, accum_steps=1, alpha=2, attack_iters=10, batch_size=64, beta=6.0, chkpnt_interval=10, crop=32, cutmix=0.0, cutmix_minmax=None, data_dir='./data', dataset='cifar', delta_init='random', drop_rate=1.0, epochs=40, epsilon=8, eval_iters=10, eval_restarts=1, grad_clip=1.0, labelsmoothvalue=0, load=False, load_path='', log_interval=10, lr_max=0.1, lr_min=0.0, method='natural', mixup=0.0, mixup_mode='batch', mixup_prob=0.3, mixup_switch_prob=0.5, model='vit_base_patch16_224', momentum=0.9, n_w=10, optim='sgd', out_dir='./natural_cifar_vit_base_patch16_224_natural_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/', patch=4, prompt_length=100, prompt_too=False, prompted=True, resize=32, run_dummy=False, scratch=False, seed=0, test=False, train_head=False, weight_decay=0.0001)
+INFO     2023-03-31 13:23:06,337 ModelDataParallel(
+  (module): VisionTransformer(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 768, kernel_size=(4, 4), stride=(4, 4))
+    )
+    (pos_drop): Dropout(p=0.0, inplace=False)
+    (blocks): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (1): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (2): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (3): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (4): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (5): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (6): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (7): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (8): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (9): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (10): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (11): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+    (pre_logits): Identity()
+    (head): Linear(in_features=768, out_features=10, bias=True)
+  )
+)
+INFO     2023-03-31 13:23:25,626 Namespace(AA_batch=128, ARD=False, PRM=False, accum_steps=1, alpha=2, attack_iters=10, batch_size=64, beta=6.0, chkpnt_interval=10, crop=32, cutmix=0.0, cutmix_minmax=None, data_dir='./data', dataset='cifar', delta_init='random', drop_rate=1.0, epochs=40, epsilon=8, eval_iters=10, eval_restarts=1, grad_clip=1.0, labelsmoothvalue=0, load=False, load_path='', log_interval=10, lr_max=0.1, lr_min=0.0, method='natural', mixup=0.0, mixup_mode='batch', mixup_prob=0.3, mixup_switch_prob=0.5, model='vit_base_patch16_224', momentum=0.9, n_w=10, optim='sgd', out_dir='./natural_cifar_vit_base_patch16_224_natural_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/', patch=4, prompt_length=100, prompt_too=False, prompted=True, resize=32, run_dummy=False, scratch=False, seed=0, test=False, train_head=False, weight_decay=0.0001)
+INFO     2023-03-31 13:23:30,173 ModelDataParallel(
+  (module): VisionTransformer(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 768, kernel_size=(4, 4), stride=(4, 4))
+    )
+    (pos_drop): Dropout(p=0.0, inplace=False)
+    (blocks): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (1): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (2): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (3): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (4): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (5): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (6): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (7): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (8): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (9): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (10): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (11): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+    (pre_logits): Identity()
+    (head): Linear(in_features=768, out_features=10, bias=True)
+  )
+)
+INFO     2023-03-31 13:23:57,294 Evaluation test_loss=2.3636 test_acc=0.1100
+INFO     2023-03-31 13:24:08,879 Training epoch 1 step 10/782, lr 0.1000 loss 2.0982 acc 0.2609
+INFO     2023-03-31 13:24:19,320 Training epoch 1 step 20/782, lr 0.1000 loss 1.8050 acc 0.3656
+INFO     2023-03-31 13:24:29,765 Training epoch 1 step 30/782, lr 0.1000 loss 1.6470 acc 0.4182
+INFO     2023-03-31 13:24:40,199 Training epoch 1 step 40/782, lr 0.1000 loss 1.5316 acc 0.4578
+INFO     2023-03-31 13:24:50,648 Training epoch 1 step 50/782, lr 0.1000 loss 1.4455 acc 0.4884
+INFO     2023-03-31 13:25:01,100 Training epoch 1 step 60/782, lr 0.1000 loss 1.3911 acc 0.5086
+INFO     2023-03-31 13:25:11,546 Training epoch 1 step 70/782, lr 0.1000 loss 1.3386 acc 0.5275
+INFO     2023-03-31 13:25:22,026 Training epoch 1 step 80/782, lr 0.1000 loss 1.3017 acc 0.5434
+INFO     2023-03-31 13:25:32,475 Training epoch 1 step 90/782, lr 0.1000 loss 1.2751 acc 0.5542
+INFO     2023-03-31 13:25:42,897 Training epoch 1 step 100/782, lr 0.1000 loss 1.2531 acc 0.5614
+INFO     2023-03-31 13:25:53,342 Training epoch 1 step 110/782, lr 0.1000 loss 1.2277 acc 0.5713
+INFO     2023-03-31 13:26:03,780 Training epoch 1 step 120/782, lr 0.1000 loss 1.2034 acc 0.5794
+INFO     2023-03-31 13:26:14,214 Training epoch 1 step 130/782, lr 0.1000 loss 1.1859 acc 0.5868
+INFO     2023-03-31 13:26:24,684 Training epoch 1 step 140/782, lr 0.1000 loss 1.1718 acc 0.5910
+INFO     2023-03-31 13:26:35,149 Training epoch 1 step 150/782, lr 0.1000 loss 1.1586 acc 0.5957
+INFO     2023-03-31 13:26:45,597 Training epoch 1 step 160/782, lr 0.1000 loss 1.1493 acc 0.5977
+INFO     2023-03-31 13:26:56,025 Training epoch 1 step 170/782, lr 0.1000 loss 1.1396 acc 0.6012
+INFO     2023-03-31 13:27:06,457 Training epoch 1 step 180/782, lr 0.1000 loss 1.1310 acc 0.6040
+INFO     2023-03-31 13:27:16,882 Training epoch 1 step 190/782, lr 0.1000 loss 1.1212 acc 0.6072
+INFO     2023-03-31 13:27:27,334 Training epoch 1 step 200/782, lr 0.1000 loss 1.1101 acc 0.6116
+INFO     2023-03-31 13:27:37,762 Training epoch 1 step 210/782, lr 0.1000 loss 1.1026 acc 0.6144
+INFO     2023-03-31 13:27:48,197 Training epoch 1 step 220/782, lr 0.1000 loss 1.0960 acc 0.6173
+INFO     2023-03-31 13:27:58,617 Training epoch 1 step 230/782, lr 0.1000 loss 1.0917 acc 0.6194
+INFO     2023-03-31 13:28:09,068 Training epoch 1 step 240/782, lr 0.1000 loss 1.0879 acc 0.6210
+INFO     2023-03-31 13:28:19,517 Training epoch 1 step 250/782, lr 0.1000 loss 1.0825 acc 0.6229
+INFO     2023-03-31 13:28:29,949 Training epoch 1 step 260/782, lr 0.1000 loss 1.0794 acc 0.6243
+INFO     2023-03-31 13:28:40,382 Training epoch 1 step 270/782, lr 0.1000 loss 1.0714 acc 0.6274
+INFO     2023-03-31 13:28:50,830 Training epoch 1 step 280/782, lr 0.1000 loss 1.0630 acc 0.6299
+INFO     2023-03-31 13:29:01,252 Training epoch 1 step 290/782, lr 0.1000 loss 1.0578 acc 0.6318
+INFO     2023-03-31 13:29:11,692 Training epoch 1 step 300/782, lr 0.1000 loss 1.0536 acc 0.6332
+INFO     2023-03-31 13:29:22,141 Training epoch 1 step 310/782, lr 0.1000 loss 1.0492 acc 0.6348
+INFO     2023-03-31 13:29:32,581 Training epoch 1 step 320/782, lr 0.1000 loss 1.0454 acc 0.6359
+INFO     2023-03-31 13:30:15,131 Namespace(AA_batch=128, ARD=False, PRM=False, accum_steps=1, alpha=2, attack_iters=10, batch_size=64, beta=6.0, chkpnt_interval=10, crop=32, cutmix=0.0, cutmix_minmax=None, data_dir='./data', dataset='cifar', delta_init='random', drop_rate=1.0, epochs=40, epsilon=8, eval_iters=10, eval_restarts=1, grad_clip=1.0, labelsmoothvalue=0, load=False, load_path='', log_interval=10, lr_max=0.1, lr_min=0.0, method='natural', mixup=0.0, mixup_mode='batch', mixup_prob=0.3, mixup_switch_prob=0.5, model='vit_base_patch16_224', momentum=0.9, n_w=10, optim='sgd', out_dir='./natural_cifar_vit_base_patch16_224_natural_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/', patch=4, prompt_length=100, prompt_too=False, prompted=True, resize=32, run_dummy=False, scratch=False, seed=0, test=False, train_head=False, weight_decay=0.0001)
+INFO     2023-03-31 13:30:19,670 ModelDataParallel(
+  (module): VisionTransformer(
+    (patch_embed): PatchEmbed(
+      (proj): Conv2d(3, 768, kernel_size=(4, 4), stride=(4, 4))
+    )
+    (pos_drop): Dropout(p=0.0, inplace=False)
+    (blocks): ModuleList(
+      (0): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (1): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (2): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (3): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (4): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (5): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (6): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (7): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (8): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (9): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (10): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+      (11): Block(
+        (norm1): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=True)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+          (v_mask): Identity()
+        )
+        (drop_path): Identity()
+        (norm2): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+        (mlp): Mlp(
+          (fc1): Linear(in_features=768, out_features=3072, bias=True)
+          (act): GELU(approximate='none')
+          (fc2): Linear(in_features=3072, out_features=768, bias=True)
+          (drop): Dropout(p=0.0, inplace=False)
+        )
+      )
+    )
+    (norm): LayerNorm((768,), eps=1e-06, elementwise_affine=True)
+    (pre_logits): Identity()
+    (head): Linear(in_features=768, out_features=10, bias=True)
+  )
+)
+INFO     2023-03-31 13:30:46,882 Evaluation test_loss=2.3636 test_acc=0.1100
+INFO     2023-03-31 13:30:58,448 Training epoch 1 step 10/782, lr 0.1000 loss 2.0982 acc 0.2609
+INFO     2023-03-31 13:31:08,861 Training epoch 1 step 20/782, lr 0.1000 loss 1.8050 acc 0.3656
+INFO     2023-03-31 13:31:19,316 Training epoch 1 step 30/782, lr 0.1000 loss 1.6470 acc 0.4182
+INFO     2023-03-31 13:31:29,744 Training epoch 1 step 40/782, lr 0.1000 loss 1.5316 acc 0.4578
+INFO     2023-03-31 13:31:40,220 Training epoch 1 step 50/782, lr 0.1000 loss 1.4455 acc 0.4884
+INFO     2023-03-31 13:31:50,666 Training epoch 1 step 60/782, lr 0.1000 loss 1.3911 acc 0.5086
+INFO     2023-03-31 13:32:01,120 Training epoch 1 step 70/782, lr 0.1000 loss 1.3386 acc 0.5275
+INFO     2023-03-31 13:32:11,544 Training epoch 1 step 80/782, lr 0.1000 loss 1.3017 acc 0.5434
+INFO     2023-03-31 13:32:21,996 Training epoch 1 step 90/782, lr 0.1000 loss 1.2751 acc 0.5542
+INFO     2023-03-31 13:32:32,405 Training epoch 1 step 100/782, lr 0.1000 loss 1.2531 acc 0.5614
+INFO     2023-03-31 13:32:42,859 Training epoch 1 step 110/782, lr 0.1000 loss 1.2277 acc 0.5713
+INFO     2023-03-31 13:32:53,317 Training epoch 1 step 120/782, lr 0.1000 loss 1.2034 acc 0.5794
+INFO     2023-03-31 13:33:03,753 Training epoch 1 step 130/782, lr 0.1000 loss 1.1859 acc 0.5868
+INFO     2023-03-31 13:33:14,181 Training epoch 1 step 140/782, lr 0.1000 loss 1.1718 acc 0.5910
+INFO     2023-03-31 13:33:24,603 Training epoch 1 step 150/782, lr 0.1000 loss 1.1586 acc 0.5957
+INFO     2023-03-31 13:33:35,030 Training epoch 1 step 160/782, lr 0.1000 loss 1.1493 acc 0.5977
+INFO     2023-03-31 13:33:45,452 Training epoch 1 step 170/782, lr 0.1000 loss 1.1396 acc 0.6012
+INFO     2023-03-31 13:33:55,892 Training epoch 1 step 180/782, lr 0.1000 loss 1.1310 acc 0.6040
+INFO     2023-03-31 13:34:06,327 Training epoch 1 step 190/782, lr 0.1000 loss 1.1212 acc 0.6072
+INFO     2023-03-31 13:34:16,767 Training epoch 1 step 200/782, lr 0.1000 loss 1.1101 acc 0.6116
