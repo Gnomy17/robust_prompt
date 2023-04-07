@@ -424,7 +424,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
             else:
                 raise ValueError(args.method)
             opt.zero_grad()
-            prompt.zero_grad()
             (loss / args.accum_steps).backward()
             if args.method == 'AT':
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
