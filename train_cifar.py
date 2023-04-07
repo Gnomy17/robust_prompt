@@ -13,6 +13,7 @@ from torch.autograd import Variable
 from pgd import evaluate_pgd,evaluate_CW
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
+torch.autograd.set_detect_anomaly(True)
 args = get_args()
 
 args.out_dir = args.out_dir+"_"+args.dataset+"_"+args.model+"_"+args.method+"_warmup"
@@ -116,12 +117,53 @@ def evaluate_natural(args, model, test_loader, verbose=False):
         logger.info('Evaluation {}'.format(meter))
 
 
-def train_adv(args, model, ds_train, ds_test, logger):
-    mu = torch.tensor(cifar10_mean).view(3, 1, 1).cuda()
-    std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
+mu = torch.tensor(cifar10_mean).view(3, 1, 1).cuda()
+std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 
-    upper_limit = ((1 - mu) / std).cuda()
-    lower_limit = ((0 - mu) / std).cuda()
+upper_limit = ((1 - mu) / std).cuda()
+lower_limit = ((0 - mu) / std).cuda()
+def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=None):
+    model.eval()
+    epsilon = epsilon_base.cuda()
+    delta = torch.zeros_like(X).cuda()
+    if args.delta_init == 'random':
+        for i in range(len(epsilon)):
+            delta[:, i, :, :].uniform_(-epsilon[i][0][0].item(), epsilon[i][0][0].item())
+        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
+    delta.requires_grad = True
+    for _ in range(args.attack_iters):
+        # patch drop
+        add_noise_mask = torch.ones_like(X)
+        grid_num_axis = int(args.resize / args.patch)
+        max_num_patch = grid_num_axis * grid_num_axis
+        ids = [i for i in range(max_num_patch)]
+        random.shuffle(ids)
+        num_patch = int(max_num_patch * (1 - drop_rate))
+        if num_patch !=0:
+            ids = np.array(ids[:num_patch])
+            rows, cols = ids // grid_num_axis, ids % grid_num_axis
+            for r, c in zip(rows, cols):
+                add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
+                c * args.patch:(c + 1) * args.patch] = 0
+        if args.PRM:
+            delta = delta * add_noise_mask
+        if prompt is not None:
+            output = model(X + delta, prompt)
+        else:    
+            output = model(X + delta)
+        loss = criterion(output, y)
+        grad = torch.autograd.grad(loss, delta)[0].detach()
+        delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
+    delta = delta.detach()
+    model.train()
+    if len(handle_list) != 0:
+        for handle in handle_list:
+            handle.remove()
+    return delta
+
+def train_adv(args, model, ds_train, ds_test, logger):
+    
 
     epsilon_base = (args.epsilon / 255.) / std
     alpha = (args.alpha / 255.) / std
@@ -146,22 +188,35 @@ def train_adv(args, model, ds_train, ds_test, logger):
     if args.prompted or args.prompt_too:
         from model_for_cifar.prompt import Prompt
         prompt = Prompt(args.prompt_length, 768)
+        
         if args.load:
             prompt.load_state_dict(checkpoint['prompt'])
         params = []
-        prompt.cuda()
         prompt.train()
+        prompt.cuda()
+        
         for p in prompt.parameters():
-            params.append(p)
+            params.append(p)        
         for p in model.module.head.parameters():
             params.append(p)
-        
+            
+        if args.disjoint_prompts:
+            params2 = []
+            prompt2 = Prompt(args.prompt_length, 768)
+            prompt2.cuda()
+            prompt2.train()
+            for p in prompt2.parameters():
+                params2.append(p)
+            for p in model.module.head.parameters():
+                params2.append(p)
         # if args.prompt_too:
         #     for p in model.parameters():
         #         params.append(p)
             
         if args.optim == 'sgd':
             opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
+            if args.disjoint_prompts:
+                opt2 = torch.optim.SGD(params2, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
         elif args.optim == 'adam':
             opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
     else:
@@ -185,7 +240,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
     epoch_s = 0 if not args.load else (checkpoint['epoch'])
     
     for epoch in tqdm.tqdm(range(epoch_s + 1, args.epochs + 1)):
-        evaluate_natural(args, model, test_loader, verbose=False)
+        # evaluate_natural(args, model, test_loader, verbose=False)
         train_loss = 0
         train_acc = 0
         train_clean = 0
@@ -239,53 +294,27 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 y = y.cuda()
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
-                def pgd_attack(prompt=None):
-                    model.eval()
-                    epsilon = epsilon_base.cuda()
-                    delta = torch.zeros_like(X).cuda()
-                    if args.delta_init == 'random':
-                        for i in range(len(epsilon)):
-                            delta[:, i, :, :].uniform_(-epsilon[i][0][0].item(), epsilon[i][0][0].item())
-                        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
-                    delta.requires_grad = True
-                    for _ in range(args.attack_iters):
-                        # patch drop
-                        add_noise_mask = torch.ones_like(X)
-                        grid_num_axis = int(args.resize / args.patch)
-                        max_num_patch = grid_num_axis * grid_num_axis
-                        ids = [i for i in range(max_num_patch)]
-                        random.shuffle(ids)
-                        num_patch = int(max_num_patch * (1 - drop_rate))
-                        if num_patch !=0:
-                            ids = np.array(ids[:num_patch])
-                            rows, cols = ids // grid_num_axis, ids % grid_num_axis
-                            for r, c in zip(rows, cols):
-                                add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
-                                c * args.patch:(c + 1) * args.patch] = 0
-                        if args.PRM:
-                            delta = delta * add_noise_mask
-                        if prompt is not None:
-                            output = model(X + delta, prompt)
-                        else:    
-                            output = model(X + delta)
-                        loss = criterion(output, y)
-                        grad = torch.autograd.grad(loss, delta)[0].detach()
-                        delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
-                        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
-                    delta = delta.detach()
-                    model.train()
-                    if len(handle_list) != 0:
-                        for handle in handle_list:
-                            handle.remove()
-                    return delta
-                delta = pgd_attack()
-                X_adv = X + delta
-                if args.prompted or args.prompt_too:
-                    output = model(X_adv, prompt)
-                else:
-                    output = model(X_adv)
                 
-                loss = criterion(output, y)
+                if args.prompted or args.prompt_too:
+                    if args.full_white:
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt)
+                    else:
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
+                    X.detach()
+                    X_adv = X + delta
+                    output = model(X_adv, prompt)
+                    loss = criterion(output, y)
+                    if args.mix_lam > 0:
+                        # print(torch.cuda.memory_summary(device=None, abbreviated=False))
+                        # print("sag")
+                        out = model(X,prompt)
+                        loss = (args.mix_lam * criterion(out, y))
+                        loss /= (1 + args.mix_lam)
+                else:
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
+                    X_adv = X + delta
+                    output = model(X_adv)
+                    loss = criterion(output, y)
                 # output = model(X, prompt)
             elif args.method == 'natural':
                 X = X.cuda()
@@ -395,17 +424,27 @@ def train_adv(args, model, ds_train, ds_test, logger):
             else:
                 raise ValueError(args.method)
             opt.zero_grad()
+            prompt.zero_grad()
             (loss / args.accum_steps).backward()
             if args.method == 'AT':
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
                 if args.prompted:
-                    delta = pgd_attack(prompt).detach()
-                    out = model(X+delta, prompt)
-                    p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean()
+                    if args.disjoint_prompts:
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, [prompt2, prompt]).detach()
+                        out = model(X+delta, [prompt2, prompt])
+                        p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                    else:
+                        p_acc = acc.item()
                     return loss, acc, y, p_acc
             else:
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
-            return loss, acc,y
+                if args.disjoint_prompts and args.prompted:
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt).detach()
+                    out = model(X+delta, [prompt2, prompt]).detach()
+                    p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                    return loss, acc, y, p_acc
+            
+            return loss, acc,y, acc.item()
 
         for step, (X, y) in enumerate(train_loader):
             batch_size = args.batch_size // args.accum_steps
@@ -420,7 +459,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     loss, acc,y, p_acc = train_step(X,y,epoch_now,mixup_fn)
                 else:
                     loss, acc, y =  train_step(X,y,epoch_now,mixup_fn)
-                    p_acc = acc
+                    p_acc = acc.item()
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
                 train_acc += acc.item() * y_.size(0)
@@ -428,18 +467,32 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     X = X.cuda()
                     y = y.cuda()
                     if args.prompted or args.prompt_too:
-                        output = model(X, prompt)
+                        if args.disjoint_prompts:
+                            output = model(X, [prompt2, prompt])
+                        else:
+                            output = model(X, prompt)
                     else:
                         output = model(X)
                     acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
                     return acc
                     # print(output.shape, y.shape)
-                train_prompted += p_acc.item() * y_.size(0)
+                train_prompted += p_acc * y_.size(0)
                 train_clean += clean_acc(X, y).item() * y_.size(0)
                 train_n += y_.size(0)
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
             opt.step()
             opt.zero_grad()
+            if args.prompted and args.disjoint_prompts:
+                X = X.cuda()
+                y = y.cuda()
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, [], args.drop_rate, prompt)
+                output = model(X+delta, [prompt2, prompt])
+                loss2 = criterion(output, y)
+                opt2.zero_grad()
+                loss2.backward()
+                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                opt2.step()
+                opt2.zero_grad()
 
             if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                 logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
