@@ -3,7 +3,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='vit_base_patch16_224')
     parser.add_argument('--method', type=str, default='AT',
-                        choices=['AT', 'TRADES', 'MART', 'natural'])
+                        choices=['AT', 'TRADES', 'MART', 'natural', 'ws'])
     parser.add_argument('--dataset', type=str, default="cifar")
     parser.add_argument('--run-dummy', action='store_true')
     parser.add_argument('--accum-steps', type=int, default=1)
@@ -30,6 +30,7 @@ def get_args():
     parser.add_argument('--mix_lam', type=float, default=-1)
     parser.add_argument('--prompt_too', action='store_true')
     parser.add_argument('--prompt_length', type=int, default=100)
+    parser.add_argument('--ws', type=int, default=2)
     parser.add_argument('--train_head', action='store_true')
     parser.add_argument('--drop-rate', default=1.0, type=float)
     parser.add_argument("--beta", type=float, default=6.0)
@@ -47,6 +48,7 @@ def get_args():
     parser.add_argument('--delta-init', default='random', choices=['zero', 'random', 'previous'],
                         help='Perturbation initialization method')
     parser.add_argument('--out-dir', '--dir', default='./log', type=str, help='Output directory')
+    parser.add_argument('--model_log', action='store_true')
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
     parser.add_argument('--mixup', type=float, default=0.8,
                         help='mixup alpha, mixup enabled if > 0. (default: 0.8)')

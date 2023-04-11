@@ -5,4 +5,7 @@ class Prompt(nn.Module):
         super().__init__()
         self.prompt = torch.zeros(1, length, emb_dim)
         self.prompt = nn.Parameter(nn.init.xavier_uniform_(self.prompt))
+    
+    def set_prompt(self, prompt):
+        self.prompt = nn.Parameter(prompt.prompt.clone().detach())
 

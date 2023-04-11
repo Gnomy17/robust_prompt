@@ -13,6 +13,7 @@ from torch.autograd import Variable
 from pgd import evaluate_pgd,evaluate_CW
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
+import pickle as pkl 
 torch.autograd.set_detect_anomaly(True)
 args = get_args()
 
@@ -56,43 +57,45 @@ if args.model == "vit_base_patch16_224":
     model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
     logger.info('Model{}'.format(model))
+elif args.model == 'vit_pretrained_cifar':
+    #### TODO ####
+    pass
+    # with open(r'./fined-tuned model/pytorch_model.bin', 'rb') as f:
+    #     model = pkl.load(f)
+    # model = nn.DataParallel(model)
+    # logger.info('Model{}'.format(model))
 elif args.model == "vit_base_patch16_224_in21k":
     from model_for_cifar.vit import vit_base_patch16_224_in21k
     model = vit_base_patch16_224_in21k(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 elif args.model == "vit_small_patch16_224":
     from model_for_cifar.vit import  vit_small_patch16_224
     model = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 elif args.model == "deit_small_patch16_224":
     from model_for_cifar.deit import  deit_small_patch16_224
     model = deit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10, patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 elif args.model == "deit_tiny_patch16_224":
     from model_for_cifar.deit import  deit_tiny_patch16_224
     model = deit_tiny_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 elif args.model == "convit_base":
     from model_for_cifar.convit import convit_base
     model = convit_base(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 elif args.model == "convit_small":
     from model_for_cifar.convit import convit_small
     model = convit_small(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch,args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 elif args.model == "convit_tiny":
     from model_for_cifar.convit import convit_tiny
     model = convit_tiny(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 else:
     raise ValueError("Model doesn't exist！")
+if args.model_log:
+    logger.info('Model{}'.format(model))
 model.train()
 
 
@@ -122,7 +125,7 @@ std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 
 upper_limit = ((1 - mu) / std).cuda()
 lower_limit = ((0 - mu) / std).cuda()
-def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=None):
+def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None):
     model.eval()
     epsilon = epsilon_base.cuda()
     delta = torch.zeros_like(X).cuda()
@@ -131,7 +134,7 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
             delta[:, i, :, :].uniform_(-epsilon[i][0][0].item(), epsilon[i][0][0].item())
         delta.data = clamp(delta, lower_limit - X, upper_limit - X)
     delta.requires_grad = True
-    for _ in range(args.attack_iters):
+    for _ in range(args.attack_iters if iters is None else iters):
         # patch drop
         add_noise_mask = torch.ones_like(X)
         grid_num_axis = int(args.resize / args.patch)
@@ -238,7 +241,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
         else:
             return args.lr_max * 0.01
     epoch_s = 0 if not args.load else (checkpoint['epoch'])
-    
+    # prev_prompt = Prompt(args.prompt_length, 768)
+    # prev_prompt.set_prompt(prompt)
     for epoch in tqdm.tqdm(range(epoch_s + 1, args.epochs + 1)):
         # evaluate_natural(args, model, test_loader, verbose=False)
         train_loss = 0
@@ -246,7 +250,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         train_clean = 0
         train_prompted = 0
         train_n = 0
-
+        
         def train_step(X, y,t,mixup_fn):
             model.train()
             # drop_calculation
@@ -289,7 +293,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         if isinstance(module, Block):
                             handle_list.append(module.drop_path.register_backward_hook(drop_hook_func))
             model.train()
-            if args.method == 'AT':
+            if args.method == 'AT' or (args.method == 'ws' and  args.ws <= epoch):
                 X = X.cuda()
                 y = y.cuda()
                 if mixup_fn is not None:
@@ -298,6 +302,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.prompted or args.prompt_too:
                     if args.full_white:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt)
+                        # prev_prompt.set_prompt(prompt)
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
                     X.detach()
@@ -310,13 +315,14 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         out = model(X,prompt)
                         loss = (args.mix_lam * criterion(out, y))
                         loss /= (1 + args.mix_lam)
+                    
                 else:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
                     X_adv = X + delta
                     output = model(X_adv)
                     loss = criterion(output, y)
                 # output = model(X, prompt)
-            elif args.method == 'natural':
+            elif args.method == 'natural' or (args.method == 'ws' and epoch < args.ws):
                 X = X.cuda()
                 y = y.cuda()
                 if mixup_fn is not None:
@@ -433,7 +439,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         out = model(X+delta, [prompt2, prompt])
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
-                        p_acc = acc.item()
+                        delta = pgd_attack(model, X, y, epsilon_base, 16, args, criterion, handle_list, drop_rate, 1, prompt).detach()
+                        out = model(X+delta, prompt)
+                        p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     return loss, acc, y, p_acc
             else:
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
