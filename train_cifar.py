@@ -56,13 +56,13 @@ if args.model == "vit_base_patch16_224":
     from model_for_cifar.vit import vit_base_patch16_224
     model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-elif args.model == 'vit_pretrained_cifar':
+elif args.model == 'vit_finetuned_cifar':
     #### TODO ####
-    pass
-    # with open(r'./fined-tuned model/pytorch_model.bin', 'rb') as f:
-    #     model = pkl.load(f)
-    # model = nn.DataParallel(model)
-    # logger.info('Model{}'.format(model))
+    chkpnt = torch.load(r'./finetuned_model/finetuned_vit')
+    from model_for_cifar.vit import vit_base_patch16_224
+    model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = nn.DataParallel(model)
+    model.load_state_dict(chkpnt['state_dict'])
 elif args.model == "vit_base_patch16_224_in21k":
     from model_for_cifar.vit import vit_base_patch16_224_in21k
     model = vit_base_patch16_224_in21k(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
@@ -438,8 +438,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         out = model(X+delta, [prompt2, prompt])
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
-                        delta = pgd_attack(model, X, y, epsilon_base, 16, args, criterion, handle_list, drop_rate, iters=1, prompt=prompt).detach()
-                        out = model(X+delta, prompt)
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                        out = model(X+delta)
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     return loss, acc, y, p_acc
             else:
