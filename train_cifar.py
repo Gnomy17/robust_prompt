@@ -462,11 +462,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if len(X_) == 0:
                     break
                 # print(y.size())
-                if args.prompted:
-                    loss, acc,y, p_acc = train_step(X,y,epoch_now,mixup_fn)
-                else:
-                    loss, acc, y =  train_step(X,y,epoch_now,mixup_fn)
-                    p_acc = acc.item()
+                loss, acc,y, p_acc = train_step(X,y,epoch_now,mixup_fn)
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
                 train_acc += acc.item() * y_.size(0)
