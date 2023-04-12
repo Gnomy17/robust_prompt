@@ -56,7 +56,6 @@ if args.model == "vit_base_patch16_224":
     from model_for_cifar.vit import vit_base_patch16_224
     model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
-    logger.info('Model{}'.format(model))
 elif args.model == 'vit_pretrained_cifar':
     #### TODO ####
     pass
