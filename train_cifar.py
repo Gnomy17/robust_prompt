@@ -13,8 +13,7 @@ from torch.autograd import Variable
 from pgd import evaluate_pgd,evaluate_CW
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
-import pickle as pkl 
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 args = get_args()
 
 args.out_dir = args.out_dir+"_"+args.dataset+"_"+args.model+"_"+args.method+"_warmup"
