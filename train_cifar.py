@@ -299,10 +299,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 
                 if args.prompted or args.prompt_too:
                     if args.full_white:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt)
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else prompt)
                         # prev_prompt.set_prompt(prompt)
                     else:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None)
                     X.detach()
                     X_adv = X + delta
                     output = model(X_adv, prompt)
@@ -433,8 +433,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
                 if args.prompted:
                     if args.disjoint_prompts:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompt=[prompt2, prompt]).detach()
-                        out = model(X+delta, [prompt2, prompt])
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompt=prompt).detach()
+                        out = model(X+delta, prompt2)
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
@@ -469,7 +469,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     y = y.cuda()
                     if args.prompted or args.prompt_too:
                         if args.disjoint_prompts:
-                            output = model(X, [prompt2, prompt])
+                            output = (model(X, prompt) + model(X, prompt2))/2
                         else:
                             output = model(X, prompt)
                     else:
@@ -486,8 +486,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
             if args.prompted and args.disjoint_prompts:
                 X = X.cuda()
                 y = y.cuda()
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, [], args.drop_rate, prompt= prompt)
-                output = model(X+delta, [prompt2, prompt])
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, [], args.drop_rate, prompt=prompt)
+                output = model(X+delta, prompt2)
                 loss2 = criterion(output, y)
                 opt2.zero_grad()
                 loss2.backward()
