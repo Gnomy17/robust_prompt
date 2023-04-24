@@ -305,7 +305,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None)
                     X.detach()
                     X_adv = X + delta
-                    output = model(X_adv, prompt)
+                    if args.disjoint_prompts:
+                        output = model(X_adv, [prompt2, prompt])
+                    else: 
+                        output = model(X_adv, prompt)
                     loss = criterion(output, y)
                     if args.mix_lam > 0:
                         # print(torch.cuda.memory_summary(device=None, abbreviated=False))
@@ -491,7 +494,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 X = X.cuda()
                 y = y.cuda()
                 delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt)
-                output = model(X+delta, prompt2)
+                output = model(X+delta, [prompt2, prompt])
                 loss2 = criterion(output, y)
                 opt2.zero_grad()
                 loss2.backward()
