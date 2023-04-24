@@ -306,7 +306,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     X.detach()
                     X_adv = X + delta
                     if args.disjoint_prompts:
-                        output = model(X_adv, [prompt2, prompt])
+                        output = model(X_adv, [prompt, prompt2])
                     else: 
                         output = model(X_adv, prompt)
                     loss = criterion(output, y)
