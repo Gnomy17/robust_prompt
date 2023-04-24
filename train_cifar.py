@@ -434,13 +434,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.prompted:
                     if args.disjoint_prompts:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompt=prompt).detach()
-                        out = model(X+delta, prompt2)
+                        out = (model(X+delta, prompt2) + model(X+delta, prompt))/2
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                         out = model(X+delta)
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                    return loss, acc, y, p_acc
+                    return loss, acc, y, p_acc, handle_list
             else:
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
                 if args.disjoint_prompts and args.prompted:
@@ -460,7 +460,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if len(X_) == 0:
                     break
                 # print(y.size())
-                loss, acc,y, p_acc = train_step(X,y,epoch_now,mixup_fn)
+                loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn)
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
                 train_acc += acc.item() * y_.size(0)
@@ -484,9 +484,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
             opt.step()
             opt.zero_grad()
             if args.prompted and args.disjoint_prompts:
+                if step < args.n_w:
+                    drop_rate = step / args.n_w * args.drop_rate
+                else:
+                    drop_rate = args.drop_rate
                 X = X.cuda()
                 y = y.cuda()
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, [], args.drop_rate, prompt=prompt)
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt)
                 output = model(X+delta, prompt2)
                 loss2 = criterion(output, y)
                 opt2.zero_grad()
@@ -515,7 +519,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 meter_test = evaluate_natural(args, model, test_loader, verbose=False)
                 new.write('{}\n'.format(meter_test))
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
-            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too) else prompt.state_dict()}, path)
+            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too) else
+             ([prompt.state_dict(), prompt2.state_dict()] if args.disjoint_prompts else [prompt.state_dict()])}, path)
             logger.info('Checkpoint saved to {}'.format(path))
 
 
