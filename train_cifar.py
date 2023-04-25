@@ -436,7 +436,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
                 if args.prompted:
                     if args.disjoint_prompts:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompt=prompt).detach()
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompt=[prompt2, prompt]).detach()
                         out = model(X + delta, [prompt2, prompt])
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
@@ -472,7 +472,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     y = y.cuda()
                     if args.prompted or args.prompt_too:
                         if args.disjoint_prompts:
-                            output = (model(X, prompt) + model(X, prompt2))/2
+                            output = model(X, [prompt2, prompt])
                         else:
                             output = model(X, prompt)
                     else:
