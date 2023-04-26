@@ -163,6 +163,14 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
             handle.remove()
     return delta
 
+def make_prompt_opt(h_dim, length, args, init_xavier=True, optim='sgd'):
+    prompt = torch.zeroes(1, length, h_dim)
+    if init_xavier:
+        nn.init_xavier_uniform_(prompt)
+    if optim == 'sgd':
+        opt = torch.optim.SGD(prompt, lr=args.lr_max, weight_decay=args.weight_decay)
+    return prompt, opt
+
 def train_adv(args, model, ds_train, ds_test, logger):
     
 
@@ -187,29 +195,24 @@ def train_adv(args, model, ds_train, ds_test, logger):
     steps_per_epoch = len(train_loader)
     
     if args.prompted or args.prompt_too:
-        from model_for_cifar.prompt import Prompt
-        prompt = Prompt(args.prompt_length, 768)
+        # from model_for_cifar.prompt import Prompt
+        # prompt = Prompt(args.prompt_length, 768)
         
-        if args.load:
-            prompt.load_state_dict(checkpoint['prompt'])
-        params = []
-        prompt.train()
-        prompt.cuda()
+        # if args.load:
+        #     prompt.load_state_dict(checkpoint['prompt'])
+        # params = []
+        # prompt.train()
+        # prompt.cuda()
         
-        for p in prompt.parameters():
-            params.append(p)        
-        for p in model.module.head.parameters():
-            params.append(p)
-            
+        # for p in prompt.parameters():
+        #     params.append(p)        
+        # for p in model.module.head.parameters():
+        #     params.append(p)
+        prompt, opt = make_prompt_opt(args.prompt_length, 768, args)
+        if args.prompt_too:
+            pass ## add params of model
         if args.disjoint_prompts:
-            params2 = []
-            prompt2 = Prompt(args.prompt_length, 768)
-            prompt2.cuda()
-            prompt2.train()
-            for p in prompt2.parameters():
-                params2.append(p)
-            for p in model.module.head.parameters():
-                params2.append(p)
+            prompt2, opt2 = make_prompt_opt(args.prompt_length, 768, args)
         # if args.prompt_too:
         #     for p in model.parameters():
         #         params.append(p)
