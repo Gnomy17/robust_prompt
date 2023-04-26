@@ -123,6 +123,49 @@ std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 
 upper_limit = ((1 - mu) / std).cuda()
 lower_limit = ((0 - mu) / std).cuda()
+
+def simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompts=None):
+    model.eval()
+    epsilon = epsilon_base.cuda()
+    delta = torch.zeros_like(X).cuda()
+    if args.delta_init == 'random':
+        for i in range(len(epsilon)):
+            delta[:, i, :, :].uniform_(-epsilon[i][0][0].item(), epsilon[i][0][0].item())
+        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
+    delta.requires_grad = True
+    for _ in range(args.attack_iters if iters is None else iters):
+        # patch drop
+        add_noise_mask = torch.ones_like(X)
+        grid_num_axis = int(args.resize / args.patch)
+        max_num_patch = grid_num_axis * grid_num_axis
+        ids = [i for i in range(max_num_patch)]
+        random.shuffle(ids)
+        num_patch = int(max_num_patch * (1 - drop_rate))
+        if num_patch !=0:
+            ids = np.array(ids[:num_patch])
+            rows, cols = ids // grid_num_axis, ids % grid_num_axis
+            for r, c in zip(rows, cols):
+                add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
+                c * args.patch:(c + 1) * args.patch] = 0
+        if args.PRM:
+            delta = delta * add_noise_mask
+        loss = None
+        for p in prompts:
+            out = model(X + delta, p)
+            if loss is None:
+                loss = criterion(out, y)
+            else:
+                loss += criterion(out, y)
+        grad = torch.autograd.grad(loss, delta)[0].detach()
+        delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
+    delta = delta.detach()
+    model.train()
+    if len(handle_list) != 0:
+        for handle in handle_list:
+            handle.remove()
+    return delta
+
 def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None):
     model.eval()
     epsilon = epsilon_base.cuda()
@@ -309,10 +352,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     X.detach()
                     X_adv = X + delta
                     if args.disjoint_prompts:
-                        output = model(X_adv, [prompt, prompt2])
+                        output = model(X_adv, prompt)
                     else: 
                         output = model(X_adv, prompt)
                     loss = criterion(output, y)
+                    if args.disjoint_prompts:
+                        loss += F.mse_loss(prompt.prompt, prompt2.prompt)
                     if args.mix_lam > 0:
                         # print(torch.cuda.memory_summary(device=None, abbreviated=False))
                         # print("sag")
@@ -439,8 +484,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
                 if args.prompted:
                     if args.disjoint_prompts:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompt=[prompt2, prompt]).detach()
-                        out = model(X + delta, [prompt2, prompt])
+                        delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompts=[prompt2, prompt]).detach()
+                        out = model(X + delta, prompt)
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
@@ -497,8 +542,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 X = X.cuda()
                 y = y.cuda()
                 delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt)
-                output = model(X+delta, [prompt2, prompt])
+                output = model(X+delta, prompt2)
                 loss2 = criterion(output, y)
+                loss2 += F.mse_loss(prompt.prompt, prompt2.prompt)
                 opt2.zero_grad()
                 loss2.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
