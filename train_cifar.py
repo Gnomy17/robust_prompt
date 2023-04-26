@@ -206,13 +206,21 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
             handle.remove()
     return delta
 
-def make_prompt_opt(h_dim, length, args, init_xavier=True, optim='sgd'):
-    prompt = torch.zeroes(1, length, h_dim)
+def make_prompt(length, h_dim, init_xavier=True):
+    prompt = torch.zeros(1, length, h_dim, requires_grad=True)
+    prompt.cuda()
     if init_xavier:
-        nn.init_xavier_uniform_(prompt)
-    if optim == 'sgd':
-        opt = torch.optim.SGD(prompt, lr=args.lr_max, weight_decay=args.weight_decay)
-    return prompt, opt
+        nn.init.xavier_uniform_(prompt)
+    # prompt = nn.Parameter(prompt)
+    return prompt
+
+def majority_vote(model, X, y, prompts):
+    with torch.no_grad():
+        votes = zeros_like(y)
+        for p in prompts:
+            out = model(X, p)
+            votes[:, out.max(1)[1]] += 1
+        return (votes.max(1)[1] == y.max(1)[1]).float().mean().item()
 
 def train_adv(args, model, ds_train, ds_test, logger):
     
@@ -247,18 +255,20 @@ def train_adv(args, model, ds_train, ds_test, logger):
         # prompt.train()
         # prompt.cuda()
         
-        # for p in prompt.parameters():
-        #     params.append(p)        
-        # for p in model.module.head.parameters():
-        #     params.append(p)
-        prompt, opt = make_prompt_opt(args.prompt_length, 768, args)
+        prompt = make_prompt(args.prompt_length, 768)
+        params = [prompt]
+        for p in model.module.head.parameters():
+            params.append(p)
         if args.prompt_too:
             pass ## add params of model
         if args.disjoint_prompts:
-            prompt2, opt2 = make_prompt_opt(args.prompt_length, 768, args)
-        # if args.prompt_too:
-        #     for p in model.parameters():
-        #         params.append(p)
+            prompt2 = make_prompt(args.prompt_length, 768)
+            params2 = [prompt2]
+            for p in model.module.head.parameters():
+                params2.append(p)   
+        if args.prompt_too:
+            for p in model.parameters():
+                params.append(p)
             
         if args.optim == 'sgd':
             opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
@@ -266,6 +276,15 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 opt2 = torch.optim.SGD(params2, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
         elif args.optim == 'adam':
             opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
+    elif args.method == 'voting':
+        prompts = []
+        for i in range(args.num_prompts):
+            p = make_prompt(args.prompt_length, 768)
+            propmts.append(p)
+        head_params = []
+        for p in model.module.head.parameters():
+            head_params.append(p)
+        opt = torch.optim.SGD(prompts + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
     else:
         if args.optim == 'sgd':
             opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
@@ -345,7 +364,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 
                 if args.prompted or args.prompt_too:
                     if args.full_white:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else prompt)
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else prompt).detach()
                         # prev_prompt.set_prompt(prompt)
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None)
@@ -356,8 +375,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     else: 
                         output = model(X_adv, prompt)
                     loss = criterion(output, y)
-                    if args.disjoint_prompts:
-                        loss += F.mse_loss(prompt.prompt, prompt2.prompt)
+                    # if args.disjoint_prompts:
+                    #     loss += F.mse_loss(prompt, prompt2)
                     if args.mix_lam > 0:
                         # print(torch.cuda.memory_summary(device=None, abbreviated=False))
                         # print("sag")
@@ -371,6 +390,40 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     output = model(X_adv)
                     loss = criterion(output, y)
                 # output = model(X, prompt)
+            elif args.method == 'voting':
+                X = X.cuda()
+                y = y.cuda()
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                ds = []
+                for p in prompts:
+                    d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
+                    ds.append(d)
+                accs = []
+                losses = 0
+                for i, p in enumerate(prompts):
+                    loss = None
+                    acc = 0
+                    for j, d in enumerate(ds):
+                        if j==i:
+                            continue
+                        out = model(X + d, p)
+                        acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                        if loss is None:
+                            loss = criterion(out, y)
+                        else:
+                            loss += criterion(out, y)
+                    loss /= len(ds) - 1
+                    losses += loss.item()
+                    accs.append("{:.4f}".format(str(acc/(len(prompts) - 1))))
+                    opt.zero_grad()
+                    loss.backward()
+                    opt.step()
+                accs_vote = []
+                for d in ds:
+                    accs_vote.append("{:.4f}".format(str(majority_vote(model, X + d, y, prompts))))
+                
+
             elif args.method == 'natural' or (args.method == 'ws' and epoch < args.ws):
                 X = X.cuda()
                 y = y.cuda()
@@ -484,8 +537,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
                 if args.prompted:
                     if args.disjoint_prompts:
-                        delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompts=[prompt2, prompt]).detach()
-                        out = model(X + delta, prompt)
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,prompt=prompt).detach()
+                        out = model(X + delta, prompt2)
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
@@ -544,7 +597,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt)
                 output = model(X+delta, prompt2)
                 loss2 = criterion(output, y)
-                loss2 += F.mse_loss(prompt.prompt, prompt2.prompt)
+                # loss2 += F.mse_loss(prompt, prompt2)
                 opt2.zero_grad()
                 loss2.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
