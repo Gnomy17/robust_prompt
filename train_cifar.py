@@ -192,7 +192,10 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
         if args.PRM:
             delta = delta * add_noise_mask
         if prompt is not None:
-            output = model(X + delta, prompt)
+            if callable(prompt):
+                output = model(X + delta, prompt(X + delta))
+            else:
+                output = model(X + delta, prompt)
         else:    
             output = model(X + delta)
         loss = criterion(output, y)
@@ -285,6 +288,17 @@ def train_adv(args, model, ds_train, ds_test, logger):
         for p in model.module.head.parameters():
             head_params.append(p)
         opt = torch.optim.SGD(prompts + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+    elif args.blocked:
+        from model_for_cifar.vit import PatchEmbed, Block
+        pblock = nn.Sequential(PatchEmbed(img_size=crop_size, patch_size=args.patch, in_chans=3, embed_dim=768), Block(768, 12))
+        pblock.cuda()
+        pblock.train()
+        params = []
+        for p in pblock.parameters():
+            params.append(p)
+        for p in model.module.head.parameters():
+            params.append(p) 
+        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
     else:
         if args.optim == 'sgd':
             opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
@@ -383,7 +397,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         out = model(X,prompt)
                         loss = (args.mix_lam * criterion(out, y))
                         loss /= (1 + args.mix_lam)
-                    
+                elif args.blocked:
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=pblock).detach()
+                    X_adv = X + delta
+                    output = model(X_adv, pblock(X))
+                    loss = criterion(output, y)
                 else:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
                     X_adv = X + delta
@@ -431,6 +449,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     X, y = mixup_fn(X, y)
                 if args.prompted or args.prompt_too:
                     output = model(X, prompt)
+                elif args.blocked:
+                    output = model(X, pblock(X))
                 else:
                     output = model(X)
                 # print(output.shape, y.shape)
@@ -551,9 +571,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                     out = model(X+delta, [prompt2, prompt]).detach()
                     p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                    return loss, acc, y, p_acc
+                    return loss, acc, y, p_acc, handle_list
             
-            return loss, acc,y, acc.item()
+            return loss, acc,y, acc.item(), handle_list
 
         for step, (X, y) in enumerate(train_loader):
             batch_size = args.batch_size // args.accum_steps
@@ -576,6 +596,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             output = model(X, [prompt2, prompt])
                         else:
                             output = model(X, prompt)
+                    elif args.blocked:
+                        output = model(X, pblock(X))
                     else:
                         output = model(X)
                     acc = (output.max(1)[1] == y.max(1)[1]).float().mean()

@@ -25,6 +25,7 @@ def get_args():
     parser.add_argument('--ARD', action='store_true')
     parser.add_argument('--PRM', action='store_true')
     parser.add_argument('--prompted', action='store_true')
+    parser.add_argument('--blocked', action='store_true')
     parser.add_argument('--disjoint_prompts', action='store_true')
     parser.add_argument('--full_white', action='store_true')
     parser.add_argument('--mix_lam', type=float, default=-1)
