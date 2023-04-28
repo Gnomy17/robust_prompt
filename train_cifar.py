@@ -292,13 +292,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
         from model_for_cifar.vit import PatchEmbed, Block
         from model_for_cifar.prompt import PromptBlock
         if args.block_type == 'attention':
-            pblock = nn.Sequential(PatchEmbed(img_size=crop_size, patch_size=args.patch, in_chans=3, embed_dim=768), Block(768, 12))
+            prompt = nn.Sequential(PatchEmbed(img_size=crop_size, patch_size=args.patch, in_chans=3, embed_dim=768), Block(768, 12))
         elif args.block_type == 'cnn':    
-            pblock = PromptBlock(img_size=crop_size, patch_size= args.patch, in_chans=3, middle_dim=768 ,embed_dim= 768, stride=4)
-        pblock.cuda()
-        pblock.train()
+            prompt = PromptBlock(img_size=crop_size, patch_size= args.patch, in_chans=3, middle_dim=768 ,embed_dim= 768, stride=4)
+        prompt.cuda()
+        prompt.train()
         params = []
-        for p in pblock.parameters():
+        for p in prompt.parameters():
             params.append(p)
         for p in model.module.head.parameters():
             params.append(p) 
@@ -402,9 +402,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         loss = (args.mix_lam * criterion(out, y))
                         loss /= (1 + args.mix_lam)
                 elif args.blocked:
-                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=pblock).detach()
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                     X_adv = X + delta
-                    output = model(X_adv, pblock(X))
+                    output = model(X_adv, prompt(X))
                     loss = criterion(output, y)
                 else:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
@@ -454,7 +454,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.prompted or args.prompt_too:
                     output = model(X, prompt)
                 elif args.blocked:
-                    output = model(X, pblock(X))
+                    output = model(X, prompt(X))
                 else:
                     output = model(X)
                 # print(output.shape, y.shape)
@@ -601,7 +601,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         else:
                             output = model(X, prompt)
                     elif args.blocked:
-                        output = model(X, pblock(X))
+                        output = model(X, prompt(X))
                     else:
                         output = model(X)
                     acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
@@ -650,7 +650,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 meter_test = evaluate_natural(args, model, test_loader, verbose=False)
                 new.write('{}\n'.format(meter_test))
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
-            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too) else
+            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too or args.blocked) else
              ([prompt.state_dict(), prompt2.state_dict()] if args.disjoint_prompts else [prompt.state_dict()])}, path)
             logger.info('Checkpoint saved to {}'.format(path))
 
