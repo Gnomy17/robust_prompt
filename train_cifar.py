@@ -290,7 +290,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
         opt = torch.optim.SGD(prompts + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
     elif args.blocked:
         from model_for_cifar.vit import PatchEmbed, Block
-        pblock = nn.Sequential(PatchEmbed(img_size=crop_size, patch_size=args.patch, in_chans=3, embed_dim=768), Block(768, 12))
+        from model_for_cifar.prompt import PromptBlock
+        if args.block_type == 'attention':
+            pblock = nn.Sequential(PatchEmbed(img_size=crop_size, patch_size=args.patch, in_chans=3, embed_dim=768), Block(768, 12))
+        elif args.block_type == 'cnn':    
+            pblock = PromptBlock(img_size=crop_size, patch_size= args.patch, in_chans=3, middle_dim=768 ,embed_dim= 768, stride=4)
         pblock.cuda()
         pblock.train()
         params = []
@@ -298,7 +302,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             params.append(p)
         for p in model.module.head.parameters():
             params.append(p) 
-        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+        opt = torch.optim.Adam(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
     else:
         if args.optim == 'sgd':
             opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
