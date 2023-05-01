@@ -405,7 +405,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 elif args.blocked:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                     X_adv = X + delta
-                    output = model(X_adv, prompt(X))
+                    output = model(X_adv, prompt(X_adv))
                     loss = criterion(output, y)
                 else:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
