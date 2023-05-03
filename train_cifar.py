@@ -400,7 +400,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         # print(torch.cuda.memory_summary(device=None, abbreviated=False))
                         # print("sag")
                         out = model(X,prompt)
-                        loss = (args.mix_lam * criterion(out, y))
+                        loss += (args.mix_lam * criterion(out, y))
                         loss /= (1 + args.mix_lam)
                 elif args.blocked:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
