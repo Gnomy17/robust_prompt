@@ -260,23 +260,19 @@ def train_adv(args, model, ds_train, ds_test, logger):
         
         prompt = make_prompt(args.prompt_length, 768)
         params = [prompt]
-        for p in model.module.head.parameters():
-            params.append(p)
-        if args.prompt_too:
-            pass ## add params of model
+        
         if args.disjoint_prompts:
             prompt2 = make_prompt(args.prompt_length, 768)
-            params2 = [prompt2]
-            for p in model.module.head.parameters():
-                params2.append(p)   
+            params.append(prompt2)
         if args.prompt_too:
             for p in model.parameters():
+                params.append(p)
+        else:
+            for p in model.module.head.parameters():
                 params.append(p)
             
         if args.optim == 'sgd':
             opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
-            if args.disjoint_prompts:
-                opt2 = torch.optim.SGD(params2, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
         elif args.optim == 'adam':
             opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
     elif args.method == 'voting':
@@ -394,12 +390,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     else: 
                         output = model(X_adv, prompt)
                     loss = criterion(output, y)
-                    # if args.disjoint_prompts:
-                    #     loss += F.mse_loss(prompt, prompt2)
+                    if args.disjoint_prompts:
+                        loss += F.mse_loss(prompt, prompt2)
                     if args.mix_lam > 0:
-                        # print(torch.cuda.memory_summary(device=None, abbreviated=False))
-                        # print("sag")
-                        out = model(X,prompt)
+                        out = model(X, prompt)
                         loss += (args.mix_lam * criterion(out, y))
                         loss /= (1 + args.mix_lam)
                 elif args.blocked:
@@ -567,7 +561,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
-                        out = model(X+delta)
+                        out = model(X+delta, prompt)
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     return loss, acc, y, p_acc, handle_list
             else:
@@ -624,12 +618,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt)
                 output = model(X+delta, prompt2)
                 loss2 = criterion(output, y)
-                # loss2 += F.mse_loss(prompt, prompt2)
-                opt2.zero_grad()
+                loss2 += F.mse_loss(prompt, prompt2)
+                opt.zero_grad()
                 loss2.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-                opt2.step()
-                opt2.zero_grad()
+                opt.step()
+                opt.zero_grad()
 
             if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                 logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
