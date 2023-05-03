@@ -361,26 +361,28 @@ class VisionTransformer(nn.Module):
         x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
+        ind = 0
         if prompts is not None:
-            if prompts.size(0) == 1:
-                if isinstance(prompts,list):
-                    ps = []
-                    for prompt in prompts:
-                        ps.append(prompt.expand(x.size(0), prompt.size(1), prompt.size(2)))
-                    batched_prompt = torch.cat(ps, dim=1)
-                else:
+            if isinstance(prompts, list):
+                ps = []
+                for prompt in prompts:
+                    ind += prompt.size(1)
+                    ps.append(prompt.expand(x.size(0), prompt.size(1), prompt.size(2)))
+                batched_prompt = torch.cat(ps, dim=1)
+            else:
+                ind += prompts.size(1)
+                if prompts.size(0) == 1:
                     prompt = prompts
                     batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
-                x = torch.cat((batched_prompt, x), dim=1)     
-            else:
-                x = torch.cat((prompts, x), dim=1)
+                    x = torch.cat((batched_prompt, x), dim=1)     
+                else:
+                    x = torch.cat((prompts, x), dim=1)
         # i=0  
         for blk in self.blocks:
             # print(i)
             # i+=1
             x = blk(x)
-
-        x = self.norm(x)[:, 0]
+        x = self.norm(x)[:, ind]
         x = self.pre_logits(x)
         return x
 
