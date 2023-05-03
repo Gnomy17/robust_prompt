@@ -370,6 +370,7 @@ class VisionTransformer(nn.Module):
                     ind += prompt.size(1)
                     ps.append(prompt.expand(x.size(0), prompt.size(1), prompt.size(2)))
                 batched_prompt = torch.cat(ps, dim=1)
+                x = torch.cat((batched_prompt, x), dim=1)
             else:
                 ind += prompts.size(1)
                 if prompts.size(0) == 1:
