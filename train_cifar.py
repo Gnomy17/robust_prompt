@@ -382,7 +382,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else prompt).detach()
                         # prev_prompt.set_prompt(prompt)
                     else:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None)
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None).detach()
                     X.detach()
                     X_adv = X + delta
                     if args.disjoint_prompts:
@@ -402,7 +402,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     output = model(X_adv, prompt(X_adv))
                     loss = criterion(output, y)
                 else:
-                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate)
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
                     output = model(X_adv)
                     loss = criterion(output, y)
@@ -615,7 +615,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     drop_rate = args.drop_rate
                 X = X.cuda()
                 y = y.cuda()
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt)
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                 output = model(X+delta, prompt2)
                 loss2 = criterion(output, y)
                 loss2 += F.mse_loss(prompt, prompt2)
