@@ -592,7 +592,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     y = y.cuda()
                     if args.prompted or args.prompt_too:
                         if args.disjoint_prompts:
-                            output = model(X, [prompt2, prompt])
+                            output = model(X, (prompt2 + prompt)/2)
                         else:
                             output = model(X, prompt)
                     elif args.blocked:
