@@ -391,7 +391,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         output = model(X_adv, prompt)
                     loss = criterion(output, y)
                     if args.disjoint_prompts:
-                        loss += F.mse_loss(prompt, prompt2)
+                        loss += F.mse_loss(output, model(X+delta, prompt2))
                     if args.mix_lam > 0:
                         out = model(X, prompt)
                         loss += (args.mix_lam * criterion(out, y))
@@ -401,6 +401,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     X_adv = X + delta
                     output = model(X_adv, prompt(X_adv))
                     loss = criterion(output, y)
+                    if args.mix_lam > 0:
+                        out = model(X, prompt(X))
+                        loss += (args.mix_lam * criterion(out, y))
+                        loss /= (1 + args.mix_lam)
                 else:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
@@ -618,7 +622,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                 output = model(X+delta, prompt2)
                 loss2 = criterion(output, y)
-                loss2 += F.mse_loss(prompt, prompt2)
+                loss2 += F.mse_loss(output, model(X+delta, prompt))
+                if args.mix_lam > 0:
+                        out = model(X, prompt)
+                        loss2 += (args.mix_lam * criterion(out, y))
+                        loss2 /= (1 + args.mix_lam)
+                
                 opt.zero_grad()
                 loss2.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
