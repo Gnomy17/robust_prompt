@@ -219,10 +219,11 @@ def make_prompt(length, h_dim, init_xavier=True):
 
 def majority_vote(model, X, y, prompts):
     with torch.no_grad():
-        votes = zeros_like(y)
+        votes = torch.zeros_like(y)
         for p in prompts:
             out = model(X, p)
-            votes[:, out.max(1)[1]] += 1
+            votes += F.one_hot(out.max(1)[1], 10)
+        # print(votes)
         return (votes.max(1)[1] == y.max(1)[1]).float().mean().item()
 
 def train_adv(args, model, ds_train, ds_test, logger):
@@ -277,13 +278,14 @@ def train_adv(args, model, ds_train, ds_test, logger):
             opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
     elif args.method == 'voting':
         prompts = []
-        for i in range(args.num_prompts):
-            p = make_prompt(args.prompt_length, 768)
-            propmts.append(p)
+        opts = []
         head_params = []
         for p in model.module.head.parameters():
             head_params.append(p)
-        opt = torch.optim.SGD(prompts + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+        for i in range(args.num_prompts):
+            p = make_prompt(args.prompt_length, 768)
+            prompts.append(p)
+            opts.append(torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay))
     elif args.blocked:
         from model_for_cifar.vit import PatchEmbed, Block
         from model_for_cifar.prompt import PromptBlock
@@ -420,7 +422,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 for p in prompts:
                     d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
                     ds.append(d)
-                accs = []
+                accs = torch.zeros(len(prompts))
                 losses = 0
                 for i, p in enumerate(prompts):
                     loss = None
@@ -435,15 +437,25 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         else:
                             loss += criterion(out, y)
                     loss /= len(ds) - 1
+                    out_c = model(X, p)
+                    loss += criterion(out_c, y)
                     losses += loss.item()
-                    accs.append("{:.4f}".format(str(acc/(len(prompts) - 1))))
-                    opt.zero_grad()
+                    accs[i] = acc/(len(prompts) - 1)                  
+                    opts[i].zero_grad()
                     loss.backward()
-                    opt.step()
-                accs_vote = []
-                for d in ds:
-                    accs_vote.append("{:.4f}".format(str(majority_vote(model, X + d, y, prompts))))
+                    opts[i].step()
+                    opts[i].zero_grad()
+
+                accs_vote = torch.zeros(len(prompts))
+                losses /= len(prompts)
+                for i, d in enumerate(ds):
+                    accs_vote[i] = majority_vote(model, X + d, y, prompts)
                 
+                acc_clean = majority_vote(model, X, y, prompts)
+                delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts)
+                acc_adv = majority_vote(model, X + delta, y, prompts)
+                
+                return accs, accs_vote, losses, acc_clean, acc_adv
 
             elif args.method == 'natural' or (args.method == 'ws' and epoch < args.ws):
                 X = X.cuda()
@@ -577,16 +589,39 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     return loss, acc, y, p_acc, handle_list
             
             return loss, acc,y, acc.item(), handle_list
+        if args.method == 'voting':
+            accs_ind = torch.zeros(len(prompts))
+            accs_vote = torch.zeros(len(prompts))
 
         for step, (X, y) in enumerate(train_loader):
             batch_size = args.batch_size // args.accum_steps
             epoch_now = epoch - 1 + (step + 1) / len(train_loader)
-            for t in range(args.accum_steps):
-                X_ = X[t * batch_size:(t + 1) * batch_size].cuda()  # .permute(0, 3, 1, 2)
-                y_ = y[t * batch_size:(t + 1) * batch_size].cuda()  # .max(dim=-1).indices
-                if len(X_) == 0:
-                    break
-                # print(y.size())
+
+            X_ = X[0: batch_size].cuda()  # .permute(0, 3, 1, 2)
+            y_ = y[0: batch_size].cuda()  # .max(dim=-1).indices
+            if len(X_) == 0:
+                break
+            # print(y.size())
+            if args.method == 'voting':
+                accs, accs_maj, losses, acc_clean, acc_adv = train_step(X, y, epoch_now, mixup_fn)
+                train_n += y_.size(0)
+                train_loss += losses * y_.size(0)
+                train_clean += acc_clean * y_.size(0)
+                accs_ind += accs * y_.size(0)
+                accs_vote += accs_maj * y_.size(0)
+                train_acc += acc_adv * y_.size(0)
+                def floats_to_str(floats):
+                    string = "("
+                    for f in floats:
+                        string += "{:.4f} ".format(f)
+                    return string + ")"
+                if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
+                    logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} ind acc {} clean acc {:.4f} vote acc {} adv acc {:.4f}'.format(
+                        epoch, step + 1, len(train_loader),
+                        opt.param_groups[0]['lr'],
+                            losses / train_n, floats_to_str(accs_ind / train_n), train_clean/ train_n, floats_to_str(accs_vote/ train_n), train_acc/train_n
+                    ))
+            else:
                 loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn)
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
@@ -609,39 +644,43 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 train_prompted += p_acc * y_.size(0)
                 train_clean += clean_acc(X, y).item() * y_.size(0)
                 train_n += y_.size(0)
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
-            opt.step()
-            opt.zero_grad()
-            if args.prompted and args.disjoint_prompts:
-                if step < args.n_w:
-                    drop_rate = step / args.n_w * args.drop_rate
-                else:
-                    drop_rate = args.drop_rate
-                X = X.cuda()
-                y = y.cuda()
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                output = model(X+delta, prompt2)
-                loss2 = criterion(output, y)
-                loss2 += F.mse_loss(output, model(X+delta, prompt))
-                if args.mix_lam > 0:
-                        out = model(X, prompt)
-                        loss2 += (args.mix_lam * criterion(out, y))
-                        loss2 /= (1 + args.mix_lam)
-                
-                opt.zero_grad()
-                loss2.backward()
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
                 opt.step()
                 opt.zero_grad()
+                if args.prompted and args.disjoint_prompts:
+                    if step < args.n_w:
+                        drop_rate = step / args.n_w * args.drop_rate
+                    else:
+                        drop_rate = args.drop_rate
+                    X = X.cuda()
+                    y = y.cuda()
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                    output = model(X+delta, prompt2)
+                    loss2 = criterion(output, y)
+                    loss2 += F.mse_loss(output, model(X+delta, prompt))
+                    if args.mix_lam > 0:
+                            out = model(X, prompt)
+                            loss2 += (args.mix_lam * criterion(out, y))
+                            loss2 /= (1 + args.mix_lam)
+                    
+                    opt.zero_grad()
+                    loss2.backward()
+                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                    opt.step()
+                    opt.zero_grad()
 
-            if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
-                logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
-                    epoch, step + 1, len(train_loader),
-                    opt.param_groups[0]['lr'],
-                           train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
-                ))
+                if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
+                    logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
+                        epoch, step + 1, len(train_loader),
+                        opt.param_groups[0]['lr'],
+                            train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
+                    ))
             lr = lr_schedule(epoch_now)
-            opt.param_groups[0].update(lr=lr)
+            if args.method == 'voting':
+                for opt in opts:
+                    opt.param_groups[0].update(lr=lr)
+            else:
+                opt.param_groups[0].update(lr=lr)
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
         if args.test:
             with open(os.path.join(args.out_dir, 'test_PGD20.txt'),'a') as new:

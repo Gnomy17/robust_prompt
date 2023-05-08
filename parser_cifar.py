@@ -3,7 +3,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='vit_base_patch16_224')
     parser.add_argument('--method', type=str, default='AT',
-                        choices=['AT', 'TRADES', 'MART', 'natural', 'ws'])
+                        choices=['AT', 'TRADES', 'MART', 'natural', 'ws', 'voting'])
     parser.add_argument('--dataset', type=str, default="cifar")
     parser.add_argument('--run-dummy', action='store_true')
     parser.add_argument('--accum-steps', type=int, default=1)
@@ -20,6 +20,7 @@ def get_args():
     parser.add_argument('--load_path', default='', type=str)
     parser.add_argument('--scratch', action='store_true')
     parser.add_argument('--n_w', type=int, default=10)
+    parser.add_argument('--num_prompts', type=int, default=3)
     parser.add_argument('--attack-iters', type=int, default=10, help='for pgd training')
     parser.add_argument('--patch', type=int, default=4)
     parser.add_argument('--ARD', action='store_true')
