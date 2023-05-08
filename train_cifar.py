@@ -612,9 +612,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 train_acc += acc_adv * y_.size(0)
                 def floats_to_str(floats):
                     string = "("
+                    s = 0
+                    n = 0
                     for f in floats:
+                        s += f
+                        n += 1
                         string += "{:.4f} ".format(f)
-                    return string + ")"
+                    return string + "{:.4f})".format(s/n)
                 if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                     logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} ind acc {} clean acc {:.4f} vote acc {} adv acc {:.4f}'.format(
                         epoch, step + 1, len(train_loader),
@@ -693,7 +697,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 meter_test = evaluate_natural(args, model, test_loader, verbose=False)
                 new.write('{}\n'.format(meter_test))
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
-            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too or args.blocked) else
+            if args.method == 'voting':
+                torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opts': [opt.state_dict() for opt in opts], 'prompts': [p for p in prompts]}, path)
+            else:
+                torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too or args.blocked) else
              ([prompt.state_dict(), prompt2.state_dict()] if args.disjoint_prompts else [prompt.state_dict()])}, path)
             logger.info('Checkpoint saved to {}'.format(path))
 
