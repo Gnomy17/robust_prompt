@@ -217,6 +217,16 @@ def make_prompt(length, h_dim, init_xavier=True):
     # prompt = nn.Parameter(prompt)
     return prompt
 
+def CW_loss(out, y_oh):
+    loss = 0
+    y = y_oh.max(1)[1]
+    for j in range(out.size(1)):
+        inds = torch.Tensor([k for k in range(out.size(1)) if k != j]).long()
+        outs_c = out[y == j]
+        loss += torch.max(torch.max(outs_c[:, inds]) - outs_c[:, j], t).sum()
+    loss /= out.size(0)
+    return loss
+
 def majority_vote(model, X, y, prompts):
     with torch.no_grad():
         votes = torch.zeros_like(y)
@@ -391,7 +401,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         output = model(X_adv, prompt)
                     else: 
                         output = model(X_adv, prompt)
-                    loss = criterion(output, y)
+                    loss = CW_loss(output, y) if args.cw else criterion(output, y)
                     if args.disjoint_prompts:
                         loss += F.mse_loss(output, model(X+delta, prompt2))
                     if args.mix_lam > 0:
@@ -440,7 +450,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     out_c = model(X, p)
                     loss += criterion(out_c, y)
                     losses += loss.item()
-                    accs[i] = acc/(len(prompts) - 1)                  
+                    accs[i] = acc/(len(prompts))                  
                     opts[i].zero_grad()
                     loss.backward()
                     opts[i].step()
