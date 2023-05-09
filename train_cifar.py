@@ -428,15 +428,15 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     loss = None
                     acc = 0
                     for j, d in enumerate(ds):
-                        if j==i:
-                            continue
+                        # if j==i:
+                        #     continue
                         out = model(X + d, p)
                         acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                         if loss is None:
                             loss = criterion(out, y)
                         else:
                             loss += criterion(out, y)
-                    loss /= len(ds) - 1
+                    loss /= len(ds) #- 1
                     out_c = model(X, p)
                     loss += criterion(out_c, y)
                     losses += loss.item()
@@ -700,8 +700,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
             if args.method == 'voting':
                 torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opts': [opt.state_dict() for opt in opts], 'prompts': [p for p in prompts]}, path)
             else:
-                torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': None if not (args.prompted or args.prompt_too or args.blocked) else
-             ([prompt.state_dict(), prompt2.state_dict()] if args.disjoint_prompts else [prompt.state_dict()])}, path)
+                if args.prompted or args.prompt_too:
+                    prompt_save = [prompt, prompt2] if args.disjoint_prompts else [prompt]
+                elif args.blocked:
+                    prompt_save = [prompt.state_dict()]
+                else:
+                    prompt_save = None
+                torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': prompt_save}, path)
             logger.info('Checkpoint saved to {}'.format(path))
 
 
