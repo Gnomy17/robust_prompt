@@ -451,20 +451,31 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 for i, p in enumerate(prompts):
                     loss = None
                     acc = 0
-                    for j, d in enumerate(ds):
-                        # if j==i:
-                        #     continue
-                        out = model(X + d, p)
+                    if args.voting_method == 'all':
+                        for j, d in enumerate(ds):
+                            # if j==i:
+                            #     continue
+                            out = model(X + d, p)
+                            acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item() / len(ds)
+                            if loss is None:
+                                loss = criterion(out, y)/len(ds)
+                            else:
+                                loss += criterion(out, y)/len(ds)
+                    elif args.voting_method == 'self':
+                        out = model(X + ds[i], p)
                         acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                        if loss is None:
-                            loss = criterion(out, y)
-                        else:
-                            loss += criterion(out, y)
-                    loss /= len(ds) #- 1
+                        loss = criterion(out, y)
+                    elif args.voting_method == 'rand':
+                        ds = torch.stack(ds)
+                        inds = torch.randint(low=0, high=len(prompts), size=ds.size(0))
+                        rand_d = ds[:, :, :, :, inds]
+                        out = model(X + rand_d, p)
+                        acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                        loss = criterion(out, y)
                     out_c = model(X, p)
                     loss += criterion(out_c, y)
                     losses += loss.item()
-                    accs[i] = acc/(len(prompts))                  
+                    accs[i] = acc                
                     opts[i].zero_grad()
                     loss.backward()
                     opts[i].step()
