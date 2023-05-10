@@ -96,7 +96,7 @@ if args.model_log:
     logger.info('Model{}'.format(model))
 model.train()
 
-
+checkpoint = None
 if args.load:
     checkpoint = torch.load(args.load_path)
     model.load_state_dict(checkpoint['state_dict'])
@@ -269,7 +269,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
         # prompt.train()
         # prompt.cuda()
         
-        prompt = make_prompt(args.prompt_length, 768)
+        if args.load:
+            prompt = (checkpoint['prompt'])[0]
+        else:
+            prompt = make_prompt(args.prompt_length, 768)
         params = [prompt]
         
         if args.disjoint_prompts:
@@ -293,7 +296,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
         for p in model.module.head.parameters():
             head_params.append(p)
         for i in range(args.num_prompts):
-            p = make_prompt(args.prompt_length, 768)
+            if args.load:
+                p = (checkpoint['prompts'])[i]
+            else:
+                p = make_prompt(args.prompt_length, 768)
             prompts.append(p)
             opts.append(torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay))
     elif args.blocked:
@@ -318,8 +324,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
         elif args.optim == 'adam':
             opt = torch.optim.Adam(model.parameters(), lr = args.lr_max, weight_decay=args.weight_decay)
     if args.load:
-        opt.load_state_dict(checkpoint['opt'])
+        if args.method == 'voting':
+            for i, o in enumerate(opts):
+                o.load_state_dict(checkpoint['opts'][i])
+        else:
+            opt.load_state_dict(checkpoint['opt'])
         logger.info("Resuming at epoch {}".format(checkpoint['epoch'] + 1))
+        # del checkpoint
     if args.delta_init == 'previous':
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
     lr_steps = args.epochs * steps_per_epoch
@@ -331,6 +342,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
         else:
             return args.lr_max * 0.01
     epoch_s = 0 if not args.load else (checkpoint['epoch'])
+    if args.load:
+        for k in checkpoint:
+            checkpoint[k] = None
     # prev_prompt = Prompt(args.prompt_length, 768)
     # prev_prompt.set_prompt(prompt)
     for epoch in tqdm.tqdm(range(epoch_s + 1, args.epochs + 1)):
