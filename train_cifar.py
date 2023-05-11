@@ -166,7 +166,7 @@ def simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, dr
             handle.remove()
     return delta
 
-def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None):
+def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None, target = None):
     model.eval()
     epsilon = epsilon_base.cuda()
     delta = torch.zeros_like(X).cuda()
@@ -198,7 +198,10 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
                 output = model(X + delta, prompt)
         else:    
             output = model(X + delta)
-        loss = criterion(output, y)
+        if target is None:
+            loss = criterion(output, y)
+        else:
+            loss = -criterion(output, target)
         grad = torch.autograd.grad(loss, delta)[0].detach()
         delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
         delta.data = clamp(delta, lower_limit - X, upper_limit - X)
@@ -407,17 +410,27 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     if args.full_white:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else prompt).detach()
                         # prev_prompt.set_prompt(prompt)
+                    elif args.all_classes:
+                        loss = 0
+                        for i in range(y.size(1)):
+                            inds = y.max(1)[1] != i
+                            Xs = X[inds]
+                            ys = y[inds]
+                            delta = pgd_attack(model, Xs, ys, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=i).detach()
+                            out = model(Xs + delta, prompt)
+                            loss += criterion(out, ys)
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None).detach()
                     X.detach()
-                    X_adv = X + delta
-                    if args.disjoint_prompts:
-                        output = model(X_adv, prompt)
-                    else: 
-                        output = model(X_adv, prompt)
-                    loss = CW_loss(output, y) if args.cw else criterion(output, y)
-                    if args.disjoint_prompts:
-                        loss += F.mse_loss(output, model(X+delta, prompt2))
+                    if not args.all_classes:
+                        X_adv = X + delta
+                        if args.disjoint_prompts:
+                            output = model(X_adv, prompt)
+                        else: 
+                            output = model(X_adv, prompt)
+                        loss = CW_loss(output, y) if args.cw else criterion(output, y)
+                        if args.disjoint_prompts:
+                            loss += F.mse_loss(output, model(X+delta, prompt2))
                     if args.mix_lam > 0:
                         out = model(X, prompt)
                         loss += (args.mix_lam * criterion(out, y))
