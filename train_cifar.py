@@ -413,6 +413,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     elif args.all_classes:
                         loss = 0
                         for i in range(y.size(1)):
+                            print("sag")
                             inds = y.max(1)[1] != i
                             Xs = X[inds]
                             ys = y[inds]
