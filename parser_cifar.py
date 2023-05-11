@@ -50,6 +50,7 @@ def get_args():
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--labelsmoothvalue', default=0, type=float)
     parser.add_argument('--alpha', default=2, type=float, help='Step size')
+    parser.add_argument('--all_classes', action='store_true')
     parser.add_argument('--delta-init', default='random', choices=['zero', 'random', 'previous'],
                         help='Perturbation initialization method')
     parser.add_argument('--out-dir', '--dir', default='./log', type=str, help='Output directory')
