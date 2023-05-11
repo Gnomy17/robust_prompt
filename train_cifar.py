@@ -411,14 +411,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else prompt).detach()
                         # prev_prompt.set_prompt(prompt)
                     elif args.all_classes:
-                        loss = 0
-                        for i in range(y.size(1)):
-                            inds = y.max(1)[1] != i
-                            Xs = X[inds]
-                            ys = y[inds]
-                            delta = pgd_attack(model, Xs, ys, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=i).detach()
-                            out = model(Xs + delta, prompt)
-                            loss += criterion(out, ys)
+                        i = torch.randint(low=1, high=y.size(1), size=y.max(1)[1].size()).cuda()
+                        tars = F.one_hot((y.max(1)[1] + i) % y.size(1), y.size(1))
+                        # print(tars.size())
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=tars).detach()
+                        output = model(X + delta, prompt)
+                        loss = criterion(output, y)
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None).detach()
                     X.detach()
@@ -479,10 +477,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                         loss = criterion(out, y)
                     elif args.voting_method == 'rand':
-                        ds = torch.stack(ds)
-                        inds = torch.randint(low=0, high=len(prompts), size=ds.size(0))
-                        rand_d = ds[:, :, :, :, inds]
-                        out = model(X + rand_d, p)
+                        # ds = torch.stack(ds)
+                        # inds = torch.randint(low=0, high=len(prompts), size=(ds.size(0),))
+                        # rand_d = ds[:, :, :, :, inds]
+                        next_d = ds[(i+1)%len(ds)]
+                        out = model(X + next_d, p)
                         acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                         loss = criterion(out, y)
                     out_c = model(X, p)
@@ -490,9 +489,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     losses += loss.item()
                     accs[i] = acc                
                     opts[i].zero_grad()
+                    model.zero_grad()
                     loss.backward()
                     opts[i].step()
                     opts[i].zero_grad()
+                    model.zero_grad()
 
                 accs_vote = torch.zeros(len(prompts))
                 losses /= len(prompts)
@@ -615,6 +616,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             else:
                 raise ValueError(args.method)
             opt.zero_grad()
+            model.zero_grad()
             (loss / args.accum_steps).backward()
             if args.method == 'AT':
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
@@ -624,7 +626,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         out = (model(X + delta, prompt2) + model(X+delta, prompt))/2
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                         out = model(X+delta, prompt)
                         p_acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     return loss, acc, y, p_acc, handle_list
@@ -699,6 +701,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
                 opt.step()
                 opt.zero_grad()
+                model.zero_grad()
                 if args.prompted and args.disjoint_prompts:
                     if step < args.n_w:
                         drop_rate = step / args.n_w * args.drop_rate
@@ -716,10 +719,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             loss2 /= (1 + args.mix_lam)
                     
                     opt.zero_grad()
+                    model.zero_grad()
                     loss2.backward()
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
                     opt.step()
                     opt.zero_grad()
+                    model.zero_grad()
 
                 if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                     logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
