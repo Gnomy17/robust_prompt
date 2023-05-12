@@ -13,6 +13,7 @@ from torch.autograd import Variable
 from pgd import evaluate_pgd,evaluate_CW
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
+import matplotlib.pyplot as plt
 # torch.autograd.set_detect_anomaly(True)
 args = get_args()
 
@@ -220,13 +221,13 @@ def make_prompt(length, h_dim, init_xavier=True):
     # prompt = nn.Parameter(prompt)
     return prompt
 
-def CW_loss(out, y_oh):
+def CW_loss(out, y_oh, t=0):
     loss = 0
     y = y_oh.max(1)[1]
     for j in range(out.size(1)):
         inds = torch.Tensor([k for k in range(out.size(1)) if k != j]).long()
         outs_c = out[y == j]
-        loss += torch.max(torch.max(outs_c[:, inds]) - outs_c[:, j], t).sum()
+        loss += torch.max(torch.max(outs_c[:, inds]) - outs_c[:, j], t)[0].sum()
     loss /= out.size(0)
     return loss
 
@@ -357,8 +358,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
         train_clean = 0
         train_prompted = 0
         train_n = 0
+        hist_c = torch.zeros((10)).cuda()
+        hist_a = torch.zeros((10)).cuda()
 
-        def train_step(X, y,t,mixup_fn):
+        def train_step(X, y,t,mixup_fn, hist_a, hist_c):
             model.train()
             # drop_calculation
             def attn_drop_mask_grad(module, grad_in, grad_out, drop_rate):
@@ -460,22 +463,22 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 accs = torch.zeros(len(prompts))
                 losses = 0
                 for i, p in enumerate(prompts):
-                    loss = None
+                    loss = 0
                     acc = 0
+                    out_c = model(X, p)
+                    hist_c += F.one_hot(y.max(1)[1], 10).sum(dim=0)
                     if args.voting_method == 'all':
                         for j, d in enumerate(ds):
                             # if j==i:
                             #     continue
                             out = model(X + d, p)
                             acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item() / len(ds)
-                            if loss is None:
-                                loss = criterion(out, y)/len(ds)
-                            else:
-                                loss += criterion(out, y)/len(ds)
+                            loss += criterion(out, y)/len(ds)
                     elif args.voting_method == 'self':
                         out = model(X + ds[i], p)
-                        acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                        loss = criterion(out, y)
+                        hist_a += F.one_hot(out.max(1)[1], 10).sum(dim=0)
+                        acc += (out.max(1)[1] == out_c.max(1)[1]).float().mean().item()
+                        loss += criterion(out, y)
                     elif args.voting_method == 'rand':
                         # ds = torch.stack(ds)
                         # inds = torch.randint(low=0, high=len(prompts), size=(ds.size(0),))
@@ -483,9 +486,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         next_d = ds[(i+1)%len(ds)]
                         out = model(X + next_d, p)
                         acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                        loss = criterion(out, y)
-                    out_c = model(X, p)
-                    loss += criterion(out_c, y)
+                        loss += criterion(out, y)
+                    
+                    # loss += criterion(out_c, y)
                     losses += loss.item()
                     accs[i] = acc                
                     opts[i].zero_grad()
@@ -497,8 +500,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
                 accs_vote = torch.zeros(len(prompts))
                 losses /= len(prompts)
-                for i, d in enumerate(ds):
-                    accs_vote[i] = majority_vote(model, X + d, y, prompts)
+                for i, p in enumerate(prompts):
+                    outc = model(X, p).detach()
+                    labs = F.one_hot(outc.max(1)[1], 10)
+                    d = pgd_attack(model, X, labs, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
+                    outu = model(X + d, p).detach()
+                    accs_vote[i] = (outu.max(1)[1] == outc.max(1)[1]).float().mean().item()
+                    #majority_vote(model, X + d, y, prompts)
                 
                 acc_clean = majority_vote(model, X, y, prompts)
                 delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts)
@@ -653,7 +661,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 break
             # print(y.size())
             if args.method == 'voting':
-                accs, accs_maj, losses, acc_clean, acc_adv = train_step(X, y, epoch_now, mixup_fn)
+                accs, accs_maj, losses, acc_clean, acc_adv = train_step(X, y, epoch_now, mixup_fn, hist_a, hist_c)
                 train_n += y_.size(0)
                 train_loss += losses * y_.size(0)
                 train_clean += acc_clean * y_.size(0)
@@ -675,6 +683,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         opt.param_groups[0]['lr'],
                             losses / train_n, floats_to_str(accs_ind / train_n), train_clean/ train_n, floats_to_str(accs_vote/ train_n), train_acc/train_n
                     ))
+                if (step+1) % 50 == 0:
+                    fg, axarr = plt.subplots(2,1)
+                    axarr[0].bar(range(10), hist_c.cpu().numpy())
+                    axarr[0].set_title("True labels")
+                    axarr[1].bar(range(10), hist_a.cpu().numpy())
+                    axarr[1].set_title("Adv labels")
+                    plt.savefig("hists/hist_"+str(step) + ".png")
             else:
                 loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn)
                 # print(y.max(1)[1].size())
