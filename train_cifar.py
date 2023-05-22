@@ -468,7 +468,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     X, y = mixup_fn(X, y)
                 ds = []
                 tar = F.one_hot((y.max(1)[1])%10, 10).float().cuda()
-                for p in prompts:
+                for i, p in enumerate(prompts):
                     # for ind in [2,3]:
                         # tar = torch.ones(y.size(0)).long().cuda() * 6#(y.max(1)[1] + 1)%10
                         # print(tar.size())
@@ -476,7 +476,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         # tar = F.one_hot(tar, 10)
                         # print(X.size(), y.size(), epsilon_base *255 *std, alpha*255*std, criterion, handle_list, drop_rate, p)
                         
-                        d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()#, target= tar).detach()
+                        d = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=[prompts[(i+1) % len(prompts)], prompts[(i+2) % len(prompts)]]).detach()#, target= tar).detach()
                         ds.append(d)
                 accs = torch.zeros(len(prompts))
                 losses = 0
@@ -501,12 +501,20 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         out = model(X + ds[i], p)
                         inds_u = out.max(1)[1]
                         for j in range(y.size(0)):
-                            corr_mats[i][1, inds[j], inds_u[j]] += 1
+                            corr_mats[i][i + 1, inds[j], inds_u[j]] += 1
                         hist_a += F.one_hot(out.max(1)[1], 10).sum(dim=0)
-                        acc += (out.max(1)[1] == out_c.max(1)[1]).float().mean().item()
+                        acc += (y.max(1)[1] == out_c.max(1)[1]).float().mean().item()
+                        
                         # unilabs = torch.ones_like(y)/10
-                        unilabs = F.one_hot((y.max(1)[1] + 1) % 10).float()
-                        loss += criterion(out, unilabs)
+                        # unilabs = F.one_hot((y.max(1)[1] + 1) % 10).float()
+                        loss += criterion(out, y)
+                        with torch.no_grad():
+                            for k, d in enumerate(ds):
+                                if k == (i):
+                                    continue
+                                outu = model(X + d, p).detach()
+                                for j in range(y.size(0)):
+                                    corr_mats[i][k + 1, inds[j], outu.max(1)[1][j]] += 1
                     elif args.voting_method == 'rand':
                         # ds = torch.stack(ds)
                         # inds = torch.randint(low=0, high=len(prompts), size=(ds.size(0),))
