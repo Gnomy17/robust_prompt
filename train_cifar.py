@@ -56,6 +56,12 @@ if args.model == "vit_base_patch16_224":
     from model_for_cifar.vit import vit_base_patch16_224
     model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
+elif args.model == "vit_small_robust_cifar":
+    from model_for_cifar.vit import vit_small_patch16_224
+    model = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = nn.DataParallel(model)
+    chkpnt = torch.load(r'./finetuned_model/robust_cifar_vit')
+    model.load_state_dict(chkpnt['state_dict'])
 elif args.model == 'vit_finetuned_cifar':
     #### TODO ####
     chkpnt = torch.load(r'./finetuned_model/finetuned_vit')
@@ -271,7 +277,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
     steps_per_epoch = len(train_loader)
     
-    if args.prompted or args.prompt_too:
+    if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'wthigo']:
         # from model_for_cifar.prompt import Prompt
         # prompt = Prompt(args.prompt_length, 768)
         
@@ -280,14 +286,14 @@ def train_adv(args, model, ds_train, ds_test, logger):
         # params = []
         # prompt.train()
         # prompt.cuda()
-        
         if args.load:
             prompt = (checkpoint['prompt'])[0]
         else:
             prompt = make_prompt(args.prompt_length, 768)
         prompts = [prompt]
         params = [prompt]
-        
+        # prev_p = torch.zeros_like(prompt)
+        # prev_p.requires_grad = False
         if args.disjoint_prompts:
             prompt2 = make_prompt(args.prompt_length, 768)
             params.append(prompt2)
@@ -467,17 +473,19 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
                 ds = []
-                tar = F.one_hot((y.max(1)[1])%10, 10).float().cuda()
+                # tar = F.one_hot((y.max(1)[1])%10, 10).float().cuda()
                 for i, p in enumerate(prompts):
                     # for ind in [2,3]:
-                        # tar = torch.ones(y.size(0)).long().cuda() * 6#(y.max(1)[1] + 1)%10
-                        # print(tar.size())
-                        # tar[y.max(1)[1] == 0] = 1
-                        # tar = F.one_hot(tar, 10)
-                        # print(X.size(), y.size(), epsilon_base *255 *std, alpha*255*std, criterion, handle_list, drop_rate, p)
-                        
-                        d = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=[prompts[(i+1) % len(prompts)], prompts[(i+2) % len(prompts)]]).detach()#, target= tar).detach()
-                        ds.append(d)
+                    # out_c = model(X, p)
+                    # tar = torch.ones(y.size(0)).long().cuda() * i#(y.max(1)[1] + 1)%10
+                    # print(tar.size())
+                    # tar[y.max(1)[1] == 0] = 1
+                    # tar = F.one_hot(tar, 10).float()
+                    # print(X.size(), y.size(), epsilon_base *255 *std, alpha*255*std, criterion, handle_list, drop_rate, p)
+                    
+                    d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompts[(i + 1) % len(prompts)]).detach()
+                    #d = 0 if i == 0 else simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts[0:i]).detach()#, target= tar).detach()
+                    ds.append(d)
                 accs = torch.zeros(len(prompts))
                 losses = 0
                 for i, p in enumerate(prompts):
@@ -503,7 +511,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         for j in range(y.size(0)):
                             corr_mats[i][i + 1, inds[j], inds_u[j]] += 1
                         hist_a += F.one_hot(out.max(1)[1], 10).sum(dim=0)
-                        acc += (y.max(1)[1] == out_c.max(1)[1]).float().mean().item()
+                        acc += (y.max(1)[1] == out.max(1)[1]).float().mean().item()
                         
                         # unilabs = torch.ones_like(y)/10
                         # unilabs = F.one_hot((y.max(1)[1] + 1) % 10).float()
@@ -548,11 +556,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 losses /= len(prompts)
                 # for i, p in enumerate(prompts):
                 #     outc = model(X, p).detach()
-                #     labs = F.one_hot(outc.max(1)[1], 10).float()
-                #     d = pgd_attack(model, X, labs, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
-                #     outu = model(X + d, p).detach()
-                #     accs_vote[i] = (outu.max(1)[1] == outc.max(1)[1]).float().mean().item()
-                #     #majority_vote(model, X + d, y, prompts)
+                    # labs = F.one_hot(outc.max(1)[1], 10).float()
+                    # d = pgd_attack(model, X, labs, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
+                    # outu = model(X + d, p).detach()
+                    # accs_vote[i] = (outu.max(1)[1] == outc.max(1)[1]).float().mean().item()
+                    #majority_vote(model, X + d, y, prompts)
                 
                 acc_clean, _ = majority_vote(model, X, y, prompts)
                 delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts).detach()
@@ -575,6 +583,68 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     output = model(X)
                 # print(output.shape, y.shape)
                 loss = criterion(output, y)
+            elif args.method == 'PAT_tar':
+                X = X.cuda()
+                y = y.cuda()
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                # ds = []
+                acc = 0
+                loss = 0
+                losses = 0
+                outc = model(X, prompt)
+                # loss += criterion(outc, y)
+                # losses += loss.item()
+                # opt.zero_grad()
+                # model.zero_grad()
+                # loss.backward()
+                # opt.step()
+                # opt.zero_grad()
+                # model.zero_grad()
+                i = torch.randint(0, 10, (1,1)).item()
+                tar = torch.ones(y.size(0)).long().cuda() * i
+                tar = F.one_hot(tar, y.size(1)).float()
+                d = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=tar).detach()
+                out = model(X + d, prompt)
+                acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                loss += criterion(out, y)
+                losses += loss.item()
+                opt.zero_grad()
+                model.zero_grad()
+                loss.backward()
+                # opt.step()
+                # opt.zero_grad()
+                # model.zero_grad()
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                outa = model(X + delta, prompt).detach() 
+                for j in range(y.size(0)):
+                    corr_mats[0][0, y.max(1)[1][j], outc.max(1)[1][j]] += 1
+                    corr_mats[0][1, y.max(1)[1][j], out.max(1)[1][j]] += 1
+                    corr_mats[0][2, y.max(1)[1][j], outa.max(1)[1][j]] += 1
+                # outu = model(X + delta, prompt).detach()
+                acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
+                return loss, acc, y, acc_a, handle_list
+            elif args.method == 'wthigo':
+                X = X.cuda()
+                y = y.cuda()
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                outc, features_c = model(X, prompt, True)
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                outa, features_a = model(X + delta, prompt, True)
+                labs = torch.ones_like(y)/10
+                loss = criterion(outa, labs) #+ F.mse_loss(features_c.detach(), features_a)
+                loss.backward()
+                
+                acc_p = torch.var(outa, dim=1).mean().item()#(outa.max(1)[1] == y.max(1)[1]).float().mean().item()
+                d = pgd_attack(model, X, F.one_hot(outc.max(1)[1], 10).float(), epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                outu = model(X + d, prompt)
+                acc = (outu.max(1)[1] == outa.max(1)[1]).float().mean().item()
+                for j in range(y.size(0)):
+                    corr_mats[0][0, y.max(1)[1][j], outc.max(1)[1][j]] += 1
+                    corr_mats[0][1, y.max(1)[1][j], outa.max(1)[1][j]] += 1
+                    corr_mats[0][2, outc.max(1)[1][j], outu.max(1)[1][j]] += 1
+                return loss, acc, y, acc_p, handle_list
             elif args.method == 'TRADES':
                 X = X.cuda()
                 y = y.cuda()
@@ -732,14 +802,14 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             losses / train_n, floats_to_str(accs_ind / train_n), train_clean/ train_n, floats_to_str(accs_vote/ train_n), train_acc/train_n
                     ))
                 if (step+1) % 50 == 0:
-                    fg, axarr = plt.subplots(2,1)
-                    axarr[0].bar(range(10), hist_c.cpu().numpy())
-                    axarr[0].set_title("True labels")
-                    axarr[1].bar(range(10), hist_a.cpu().numpy())
-                    axarr[1].set_title("Adv labels")
-                    path = os.path.join(args.out_dir)
-                    plt.savefig(args.out_dir + "/hist_epoch_"+str(epoch)+"step_"+str(step) + ".png")
-                    plt.clf()
+                    # fg, axarr = plt.subplots(2,1)
+                    # axarr[0].bar(range(10), hist_c.cpu().numpy())
+                    # axarr[0].set_title("True labels")
+                    # axarr[1].bar(range(10), hist_a.cpu().numpy())
+                    # axarr[1].set_title("Adv labels")
+                    # path = os.path.join(args.out_dir)
+                    # plt.savefig(args.out_dir + "/hist_epoch_"+str(epoch)+"step_"+str(step) + ".png")
+                    # plt.clf()
                     fg, axarr = plt.subplots(len(prompts), len(prompts) + 2)
                     if len(prompts) > 1:
                         for i, c in enumerate(corr_mats):
@@ -748,12 +818,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     else:
                         axarr[0].matshow(corr_mats[0][0,:,:]/train_n)
                         axarr[1].matshow(corr_mats[0][1,:,:]/train_n)
+                        axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
                     plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png")
             else:
-                loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn,hist_a, hist_c, corr_mats)
+                loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
-                train_acc += acc.item() * y_.size(0)
+                train_acc += acc * y_.size(0)
                 def clean_acc(X, y):
                     X = X.cuda()
                     y = y.cuda()
@@ -795,11 +866,29 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     opt.zero_grad()
                     model.zero_grad()
                     loss2.backward()
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+                    grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) + [prompt], args.grad_clip)
                     opt.step()
                     opt.zero_grad()
                     model.zero_grad()
-
+                if (step+1) % 50 == 0:
+                #     # fg, axarr = plt.subplots(2,1)
+                #     # axarr[0].bar(range(10), hist_c.cpu().numpy())
+                #     # axarr[0].set_title("True labels")
+                #     # axarr[1].bar(range(10), hist_a.cpu().numpy())
+                #     # axarr[1].set_title("Adv labels")
+                #     # path = os.path.join(args.out_dir)
+                #     # plt.savefig(args.out_dir + "/hist_epoch_"+str(epoch)+"step_"+str(step) + ".png")
+                #     # plt.clf()
+                    fg, axarr = plt.subplots(len(prompts), len(prompts) + 2)
+                    if len(prompts) > 1:
+                        for i, c in enumerate(corr_mats):
+                            for j in range(len(corr_mats) + 2):
+                                axarr[i,j].matshow(c[j,:,:]/train_n)
+                    else:
+                        axarr[0].matshow(corr_mats[0][0,:,:]/train_n)
+                        axarr[1].matshow(corr_mats[0][1,:,:]/train_n)
+                        axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
+                    plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png")
                 if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                     logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
                         epoch, step + 1, len(train_loader),
