@@ -483,8 +483,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     # tar = F.one_hot(tar, 10).float()
                     # print(X.size(), y.size(), epsilon_base *255 *std, alpha*255*std, criterion, handle_list, drop_rate, p)
                     
-                    d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompts[(i + 1) % len(prompts)]).detach()
-                    #d = 0 if i == 0 else simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts[0:i]).detach()#, target= tar).detach()
+                    #d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompts[(i + 1) % len(prompts)]).detach()
+                    d = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=[pr for j,pr in enumerate(prompts) if j!=i]).detach()#, target= tar).detach()
                     ds.append(d)
                 accs = torch.zeros(len(prompts))
                 losses = 0
@@ -799,7 +799,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} ind acc {} clean acc {:.4f} vote acc {} adv acc {:.4f}'.format(
                         epoch, step + 1, len(train_loader),
                         opt.param_groups[0]['lr'],
-                            losses / train_n, floats_to_str(accs_ind / train_n), train_clean/ train_n, floats_to_str(accs_vote/ train_n), train_acc/train_n
+                            losses / train_n, floats_to_str(accs_ind / train_n), train_clean/ train_n, floats_to_str([torch.norm(p).item() for p in prompts]), train_acc/train_n
                     ))
                 if (step+1) % 50 == 0:
                     # fg, axarr = plt.subplots(2,1)
