@@ -62,6 +62,7 @@ elif args.model == "vit_small_robust_cifar":
     model = nn.DataParallel(model)
     chkpnt = torch.load(r'./finetuned_model/robust_cifar_vit')
     model.load_state_dict(chkpnt['state_dict'])
+    chkpnt['state_dict'] = 0
 elif args.model == 'vit_finetuned_cifar':
     #### TODO ####
     chkpnt = torch.load(r'./finetuned_model/finetuned_vit')
@@ -179,7 +180,7 @@ def simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, dr
             handle.remove()
     return delta
 
-def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None, target=None):
+def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None, target=None, avoid= None):
     model.eval()
     epsilon = epsilon_base.cuda()
     delta = torch.zeros_like(X).cuda()
@@ -212,7 +213,12 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
         else:    
             output = model(X + delta)
         if target is None:
-            loss = criterion(output, y)
+            if avoid is None:
+                loss = criterion(output, y)
+            elif y is None:
+                loss = criterion(output, avoid)
+            else:
+                loss = criterion(output, y) + criterion(output, avoid)
         else:
             loss = -criterion(output, target)
         grad = torch.autograd.grad(loss, delta)[0].detach()
@@ -630,22 +636,27 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
                 outc = model(X, prompt)
-                tar = torch.ones(y.size(0)).long().cuda() * 4
+                tar = torch.ones(y.size(0)).long().cuda() * 5
                 tar = F.one_hot(tar, y.size(1)).float()
+                # tar = F.one_hot((y.max(1)[1] + 1) % 10, 10).float().cuda()
                 delta = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=tar).detach()
+                dp = delta.clone()
+                # delta[y.max(1)[1] == 5] = 0
+                # delta[y.max(1)[1] == 6 ] = 0
+                # delta[y.max(1)[1] == 5 ] = 0
                 outa = model(X + delta, prompt)
                 # labs = torch.ones_like(y)/10
                 loss = criterion(outa, y) #+ F.mse_loss(features_c.detach(), features_a)
                 loss.backward()
-                
-                acc_p = (outa.max(1)[1] == tar.max(1)[1]).float().mean().item() #torch.var(outa, dim=1).mean().item()
-                d = pgd_attack(model, X, F.one_hot(outc.max(1)[1], 10).float(), epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                outu = model(X + d, prompt).detach()
-                acc = (outu.max(1)[1] == outc.max(1)[1]).float().mean().item()
+                outaa = model(X + dp, prompt).detach()
+                acc_p = (outaa.max(1)[1] == y.max(1)[1]).float().mean().item() #torch.var(outa, dim=1).mean().item()
+                # d = pgd_attack(model, X, F.one_hot(outc.max(1)[1], 10).float(), epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                # outu = model(X + d, prompt).detach()
+                acc = (y.max(1)[1] == outc.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
                     corr_mats[0][0, y.max(1)[1][j], outc.max(1)[1][j]] += 1
-                    corr_mats[0][1, y.max(1)[1][j], outa.max(1)[1][j]] += 1
-                    corr_mats[0][2, outc.max(1)[1][j], outu.max(1)[1][j]] += 1
+                    corr_mats[0][1, y.max(1)[1][j], outaa.max(1)[1][j]] += 1
+                    corr_mats[0][2, y.max(1)[1][j], outa.max(1)[1][j]] += 1
                 return loss, acc, y, acc_p, handle_list
             elif args.method == 'TRADES':
                 X = X.cuda()
@@ -872,7 +883,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     opt.step()
                     opt.zero_grad()
                     model.zero_grad()
-                if (step+1) % 50 == 0:
+                if (step+1) % 100 == 0:
                 #     # fg, axarr = plt.subplots(2,1)
                 #     # axarr[0].bar(range(10), hist_c.cpu().numpy())
                 #     # axarr[0].set_title("True labels")
@@ -881,16 +892,26 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 #     # path = os.path.join(args.out_dir)
                 #     # plt.savefig(args.out_dir + "/hist_epoch_"+str(epoch)+"step_"+str(step) + ".png")
                 #     # plt.clf()
-                    fg, axarr = plt.subplots(len(prompts), len(prompts) + 2)
+                    fg, axarr = plt.subplots(len(prompts), len(prompts) + 1)
                     if len(prompts) > 1:
                         for i, c in enumerate(corr_mats):
                             for j in range(len(corr_mats) + 2):
                                 axarr[i,j].matshow(c[j,:,:]/train_n)
                     else:
                         axarr[0].matshow(corr_mats[0][0,:,:]/train_n)
+                        # axarr[0].axis('off')
+                        axarr[0].yaxis.tick_left()
+                        axarr[0].set_title('clean samples')
+                        axarr[0].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
+                        axarr[0].set_ylabel('ground truth label')
                         axarr[1].matshow(corr_mats[0][1,:,:]/train_n)
-                        axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
-                    plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png")
+                        # axarr[1].axis('off')
+                        axarr[1].yaxis.tick_left()
+                        axarr[1].set_title('perturbed samples')
+                        axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
+                        # axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
+                        # axarr[2].axis('off')
+                    plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
                 if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                     logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
                         epoch, step + 1, len(train_loader),
