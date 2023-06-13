@@ -387,11 +387,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
         hist_c = torch.zeros((10)).cuda()
         hist_a = torch.zeros((10)).cuda()
         corr_mats = [torch.zeros((len(prompts) + 2,10,10)) for _ in (prompts)]
-        # pc = prompt.detach().clone()
-        # pc.requires_grad = False
+        # p10 = prompt.detach().clone()
+        # p10.requires_grad = False
 
         def train_step(X, y, t, mixup_fn, hist_a, hist_c, corr_mats):
-            global mean1, mean2, count, mean3, pc
+            global mean1, mean2, count, mean3
             model.train()
             # drop_calculation
             def attn_drop_mask_grad(module, grad_in, grad_out, drop_rate):
@@ -498,7 +498,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     # tar = F.one_hot(tar, 10).float()
                     # print(X.size(), y.size(), epsilon_base *255 *std, alpha*255*std, criterion, handle_list, drop_rate, p)
                     # print("sag")
-                    d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
+                    d = 0 if i == 0 else pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
                     # f_i = []
                     # for j, q in enumerate(prompts):
                     #     if i == j:
@@ -559,8 +559,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         loss += criterion(out, y)
                         # print(p.size())
                         # print(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t()).size())
-                        oloss = torch.abs(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t())).mean()
-                        loss += 0.5*oloss                                             
+                        # oloss = torch.abs(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t())).mean()
+                        # loss += 0.5*oloss                                             
                         # for f in fs[(i+1)%len(ds)]:
 
                         #     # print(feats[:, args.prompt_length + 1, :].size())
@@ -632,27 +632,31 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 loss = 0
                 losses = 0
                 
-                outc, fc = model(X, prompt, get_fs=True)
-                d = pgd_attack(model, X, F.one_hot(outc.max(1)[1], 10).float(), epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                
+                outc = model(X, prompt).detach()
+                d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                d10 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p10).detach()
+                # d20 =  pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p20).detach()
                 # outa.detach()
                 # fc.detach()
                 # fa.detach()
                 
-                # if step % 10 < 5:
-                #     outc = model(X, prompt)
-                #     loss += criterion(outc, y)
-                #     pc = prompt.detach().clone()
-                #     pc.requires_grad = False
-                #     # outa = outa.detach()
-                #     outa = model(X + d, prompt).detach()
-                #     # fa.detach()
-                #     # outa= outc
+                if (step + 1) % 10 == 0:
+                    # outc = model(X, prompt)
+                    # loss += criterion(outc, y)
+                    # pc20 = pc10.detach().clone()
+                    p10.data = prompt.detach().data
+                    # pc20.requires_grad = False
+                    p10.requires_grad = False
+                    # outa = outa.detach()
+                    # outa = model(X + d, prompt).detach()
+                    # fa.detach()
+                    # outa= outc
                 # else:
-                outa, fa = model(X + d, prompt, get_fs=True)
-                
+                outa = model(X + d, prompt)
+                loss = criterion(outa, y)
+                outu = model(X + d10, prompt).detach()
                 outc.detach()
-                loss += 10* F.mse_loss(fa[:, args.prompt_length:, :], fc[:, args.prompt_length:, :])
+                # loss += 10* F.mse_loss(fa[:, args.prompt_length:, :], fc[:, args.prompt_length:, :])
                 # count+=1
                 # mean1 += loss.item()
                 # # mean2 += closs.item()
@@ -673,7 +677,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # tar = F.one_hot(tar, y.size(1)).float()
                 
                 # out = model(X + d, prompt)
-                acc = (outc.max(1)[1] == outa.max(1)[1]).float().mean().item()
+                acc = (outu.max(1)[1] == y.max(1)[1]).float().mean().item()
                 # loss += criterion(out, y)
                 # losses += loss.item()
                 opt.zero_grad()
@@ -687,7 +691,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 for j in range(y.size(0)):
                     corr_mats[0][0, y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
                     corr_mats[0][1, y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
-                    corr_mats[0][2, y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
+                    corr_mats[0][2, y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
                 # outu = model(X + delta, prompt).detach()
                 acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
                 return loss, acc, y, acc_a, handle_list
@@ -700,9 +704,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # X = X[y.max(1)[1] != 9]
                 # y = y[y.max(1)[1] != 9]
                 outc = model(X, prompt)
-                tar = torch.ones(y.size(0)).long().cuda() * 9
-                tar2 = F.one_hot((y.max(1)[1] + 1) % 9, y.size(1)).float()
-                tar = F.one_hot(tar, y.size(1)).float()
+                # tar = torch.ones(y.size(0)).long().cuda() * 9
+                # tar2 = F.one_hot((y.max(1)[1] + 1) % 9, y.size(1)).float()
+                # tar = F.one_hot(tar, y.size(1)).float()
                 
                 # tar = F.one_hot((y.max(1)[1] + 1) % 10, 10).float().cuda()
                 delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
