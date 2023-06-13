@@ -353,7 +353,7 @@ class VisionTransformer(nn.Module):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-    def forward_features(self, x, prompts=None):
+    def forward_features(self, x, prompt=None, deep=False):
         B = x.shape[0]
         if x.shape[-1] != self.embed_dim:
             x = self.patch_embed(x)
@@ -363,38 +363,33 @@ class VisionTransformer(nn.Module):
         x = x + self.pos_embed
         x = self.pos_drop(x)
         ind = 0
-        if prompts is not None:
-            if isinstance(prompts, list):
-                ps = []
-                for prompt in prompts:
-                    ind += prompt.size(1)
-                    ps.append(prompt.expand(x.size(0), prompt.size(1), prompt.size(2)))
-                batched_prompt = torch.cat(ps, dim=1)
-                x = torch.cat((batched_prompt, x), dim=1)
+        if (prompt is not None) and (not deep):
+            ind += prompt.size(1)
+            if prompt.size(0) == 1:
+                batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
+                x = torch.cat((batched_prompt, x), dim=1)     
             else:
-                ind += prompts.size(1)
-                if prompts.size(0) == 1:
-                    prompt = prompts
-                    batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
-                    x = torch.cat((batched_prompt, x), dim=1)     
-                else:
-                    x = torch.cat((prompts, x), dim=1)
-        # i=0  
-        for blk in self.blocks:
-            # print(i)
-            # i+=1
+                x = torch.cat((prompt, x), dim=1)
+        for i, blk in enumerate(self.blocks):
+            if i == len(self.blocks) - 1 and deep:
+                ind += prompt.size(1)
+                batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
+                x = torch.cat((batched_prompt, x), dim=1)
             x = blk(x)
-        x = self.norm(x)[:, ind]
-        x = self.pre_logits(x)
-        return x
+        x_cls = self.norm(x)[:, ind]
+        x_cls = self.pre_logits(x_cls)
+        return x_cls, x
 
-    def forward(self, x, prompt=None):
+    def forward(self, x, prompt=None, get_fs =False, deep=False):
         if prompt is not None:
-            x = self.forward_features(x, prompt)
+            x, f = self.forward_features(x, prompt, deep)
         else:
-            x = self.forward_features(x)
+            x, f = self.forward_features(x)
         x = self.head(x)
-        return x
+        if get_fs:
+            return x, f
+        else:
+            return x
 
 
 class DistilledVisionTransformer(VisionTransformer):
