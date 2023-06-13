@@ -560,7 +560,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         # print(p.size())
                         # print(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t()).size())
                         oloss = torch.abs(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t())).mean()
-                        loss += 0.1*oloss                                             
+                        loss += 0.5*oloss                                             
                         # for f in fs[(i+1)%len(ds)]:
 
                         #     # print(feats[:, args.prompt_length + 1, :].size())
