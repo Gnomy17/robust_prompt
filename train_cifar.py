@@ -287,7 +287,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
     steps_per_epoch = len(train_loader)
     
-    if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'wthigo']:
+    if args.prompted or args.prompt_too or args.method in ['PAT_tar']:
         # from model_for_cifar.prompt import Prompt
         # prompt = Prompt(args.prompt_length, 768)
         
@@ -307,6 +307,15 @@ def train_adv(args, model, ds_train, ds_test, logger):
         if args.disjoint_prompts:
             prompt2 = make_prompt(args.prompt_length, 768)
             params.append(prompt2)
+        if args.method == 'PAT_tar':
+            dim = 768
+            pred_dim = 512
+            predictor = nn.Sequential(nn.Linear(dim, pred_dim, bias=False),
+                                        nn.BatchNorm1d(pred_dim),
+                                        nn.ReLU(inplace=True), # hidden layer
+                                        nn.Linear(pred_dim, dim))
+            predictor.cuda()
+            params += list(predictor.parameters())
         if args.prompt_too:
             for p in model.parameters():
                 params.append(p)
@@ -318,7 +327,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
         elif args.optim == 'adam':
             opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
-    elif args.method == 'voting':
+    elif args.method in ['voting', 'wthigo']:
         prompts = []
         head_params = []
         for p in model.module.head.parameters():
@@ -514,7 +523,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 for i, p in enumerate(prompts):
                     loss = 0
                     acc = 0
-                    out_c = model(X, p).detach()
+                    out_c = model(X, p)
                     hist_c += F.one_hot(out_c.max(1)[1], 10).sum(dim=0)
                     inds = y.max(1)[1]
                     inds_c = out_c.max(1)[1]
@@ -556,7 +565,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         for j in range(y.size(0)):
                             corr_mats[i][(i+1) % len(ds) + 1, inds[j], out.max(1)[1][j]] += 1
                         acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                        loss += criterion(out, y)
+                        loss += criterion(out, y) + F.mse_loss()
                         # print(p.size())
                         # print(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t()).size())
                         # oloss = torch.abs(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t())).mean()
@@ -632,37 +641,38 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 loss = 0
                 losses = 0
                 
-                outc = model(X, prompt).detach()
+                outc, fc = model(X, prompt, get_fs=True)
                 d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                d10 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p10).detach()
+                # d10 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p10).detach()
                 # d20 =  pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p20).detach()
                 # outa.detach()
                 # fc.detach()
                 # fa.detach()
                 
-                if (step + 1) % 10 == 0:
+                # if (step + 1) % 10 == 0:
                     # outc = model(X, prompt)
                     # loss += criterion(outc, y)
                     # pc20 = pc10.detach().clone()
-                    p10.data = prompt.detach().data
+                    # p10.data = prompt.detach().data
                     # pc20.requires_grad = False
-                    p10.requires_grad = False
+                    # p10.requires_grad = False
                     # outa = outa.detach()
                     # outa = model(X + d, prompt).detach()
                     # fa.detach()
                     # outa= outc
                 # else:
-                outa = model(X + d, prompt)
-                loss = criterion(outa, y)
-                outu = model(X + d10, prompt).detach()
+                outa, fa = model(X + d, prompt, get_fs=True)
+                outa = outa.detach()
+                loss = criterion(outc, y)
+                # outu = model(X + d10, prompt).detach()
                 outc.detach()
-                # loss += 10* F.mse_loss(fa[:, args.prompt_length:, :], fc[:, args.prompt_length:, :])
-                # count+=1
-                # mean1 += loss.item()
-                # # mean2 += closs.item()
-                # if (step + 1) % 10 == 0:
-                #         logger.info("{:.4f}, {:.4f}".format(mean1/count, mean2/count))
-                # loss += closs
+                closs =  (F.mse_loss(predictor(fa[:, args.prompt_length, :]), fc[:, args.prompt_length, :].detach()) + F.mse_loss(fa[:, args.prompt_length, :].detach(), predictor(fc[:, args.prompt_length, :])))
+                count += 1
+                mean1 += loss.item()
+                mean2 += closs.item()
+                if (step + 1) % 10 == 0:
+                        logger.info("{:.4f}, {:.4f}".format(mean1/count, mean2/count))
+                loss += closs
                 # cosim = nn.CosineSimilarity(2)
                 # loss -= cosim(fc[:, :, :], fa[:, :, :]).mean()
                 # losses += loss.item()
@@ -677,7 +687,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # tar = F.one_hot(tar, y.size(1)).float()
                 
                 # out = model(X + d, prompt)
-                acc = (outu.max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
                 # loss += criterion(out, y)
                 # losses += loss.item()
                 opt.zero_grad()
@@ -691,7 +701,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 for j in range(y.size(0)):
                     corr_mats[0][0, y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
                     corr_mats[0][1, y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
-                    corr_mats[0][2, y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
+                    corr_mats[0][2, y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
                 # outu = model(X + delta, prompt).detach()
                 acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
                 return loss, acc, y, acc_a, handle_list
@@ -703,14 +713,57 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # yc = y.detach().clone()
                 # X = X[y.max(1)[1] != 9]
                 # y = y[y.max(1)[1] != 9]
-                outc = model(X, prompt)
+                losses= 0
+                outc = model(X, prompts[0])
+                loss = criterion(outc, y)
+                loss.backward()
+                opt.step()
+                opt.zero_grad()
+                model.zero_grad()
+                losses += loss.item()
+                for j in range(y.size(0)):
+                    corr_mats[0][0, y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
+                    # corr_mats[0][1, y.max(1)[1][j], outd.detach().max(1)[1][j]] += 1
+                    # corr_mats[0][2, y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
                 # tar = torch.ones(y.size(0)).long().cuda() * 9
                 # tar2 = F.one_hot((y.max(1)[1] + 1) % 9, y.size(1)).float()
                 # tar = F.one_hot(tar, y.size(1)).float()
                 
                 # tar = F.one_hot((y.max(1)[1] + 1) % 10, 10).float().cuda()
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=tar).detach()
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompts[0]).detach()
+                fs = []
+                accs = torch.zeros(len(prompts))
+                accs[0] = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
+                # for p in prompts[1:]:
+                #     out, f = model(X+delta, p, get_fs=True)
+                #     fs.append(f.detach())
+                for i, p in enumerate(prompts[1:]):
+                    out, feat = model(X+delta, p, get_fs=True)
+                    feat = feat.detach()
+                    # out = out.detach()
+                    loss = criterion(out, y)
+                    losses += loss.item()
+                    # for j, f in enumerate(fs):
+                    #     if j == i:
+                    #         continue
+                    #     loss += F.mse_loss(feat[:, :args.prompt_length, :], f[:, :args.prompt_length, :])  
+                    loss.backward()
+                    opt.step()
+                    opt.zero_grad()
+                    model.zero_grad()
+                    for j in range(y.size(0)):
+                        corr_mats[0][i + 1, y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
+                    accs[i+1] = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                losses /= len(prompts)
+
+                acc_clean, outs = majority_vote(model, X, y, prompts)
+                for i, o in enumerate(outs):
+                    corr_mats[1][i, y.max(1)[1][j], o[j]] += 1
+                delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts).detach()
+                acc_adv, outs = majority_vote(model, X + delta, y, prompts)
+                for i, o in enumerate(outs):
+                    corr_mats[1][i, y.max(1)[1][j], o[j]] += 1
+                # d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=tar).detach()
                 # d_p = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=tar2).detach()
                 # cosim = nn.CosineSimilarity(1)
                 # inds = y.max(1)[1] != 5
@@ -725,26 +778,23 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # delta[y.max(1)[1] == 5] = 0
                 # delta[y.max(1)[1] == 6 ] = 0
                 # delta[y.max(1)[1] == 5 ] = 0
-                outa = model(X + delta, prompt)
+                # outa = model(X + delta, prompt)
                 # labs = torch.ones_like(y)/10
-                outd = model(X + d, prompt).detach()
+                # outd = model(X + d, prompt).detach()
                 # outdp = model(X + d_p, prompt).detach()
-                n = torch.zeros_like(X)
-                n.uniform_()
-                outu = model(n, prompt).detach()
-                loss = criterion(outa, tar) + criterion(outc, y) #+ F.mse_loss(features_c.detach(), features_a)
-                loss.backward()
+                # n = torch.zeros_like(X)
+                # n.uniform_()
+                # outu = model(n, prompt).detach()
+                # loss = criterion(outa, tar) + criterion(outc, y) #+ F.mse_loss(features_c.detach(), features_a)
+                # loss.backward()
                 # outaa = model(X + dp, prompt).detach()
-                acc_p = (outd.max(1)[1] == y.max(1)[1]).float().mean().item() #torch.var(outa, dim=1).mean().item()
+                # acc_p = (outd.max(1)[1] == y.max(1)[1]).float().mean().item() #torch.var(outa, dim=1).mean().item()
                 
                 # outu = model(X + d, prompt).detach()
-                acc = (tar.max(1)[1] == outa.max(1)[1]).float().mean().item()
+                # acc = (tar.max(1)[1] == outa.max(1)[1]).float().mean().item()
                 # print("sag")
-                for j in range(y.size(0)):
-                    corr_mats[0][0, y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                    corr_mats[0][1, y.max(1)[1][j], outd.detach().max(1)[1][j]] += 1
-                    corr_mats[0][2, y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
-                return loss, acc, y, acc_p, handle_list
+                
+                return accs, accs, losses, acc_clean, acc_adv
             elif args.method == 'TRADES':
                 X = X.cuda()
                 y = y.cuda()
@@ -865,7 +915,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     return loss, acc, y, p_acc, handle_list
             
             return loss, acc,y, acc.item(), handle_list
-        if args.method == 'voting':
+        if args.method in ['voting','wthigo']:
             accs_ind = torch.zeros(len(prompts))
             accs_vote = torch.zeros(len(prompts))
 
@@ -884,7 +934,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             if len(X_) == 0:
                 break
             # print(y.size())
-            if args.method == 'voting':
+            if args.method in ['voting', 'wthigo']:
                 accs, accs_maj, losses, acc_clean, acc_adv = train_step(X, y, epoch_now, mixup_fn, hist_a, hist_c, corr_mats)
                 train_n += y_.size(0)
                 train_loss += losses * y_.size(0)
@@ -1043,8 +1093,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 meter_test = evaluate_natural(args, model, test_loader, verbose=False)
                 new.write('{}\n'.format(meter_test))
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
-            if args.method == 'voting':
-                torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opts': [opt], 'prompts': [p for p in prompts]}, path)
+            if args.method in ['voting', 'wthigo']:
+                torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opts': [opt], 'prompts': prompts}, path)
             else:
                 if args.prompted or args.prompt_too:
                     prompt_save = [prompt, prompt2] if args.disjoint_prompts else [prompt]
