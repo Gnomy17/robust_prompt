@@ -762,7 +762,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts).detach()
                 acc_adv, outs = majority_vote(model, X + delta, y, prompts)
                 for i, o in enumerate(outs):
-                    corr_mats[1][i, y.max(1)[1][j], o[j]] += 1
+                    corr_mats[2][i, y.max(1)[1][j], o[j]] += 1
                 # d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=tar).detach()
                 # d_p = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=tar2).detach()
                 # cosim = nn.CosineSimilarity(1)
