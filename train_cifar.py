@@ -507,7 +507,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     # tar = F.one_hot(tar, 10).float()
                     # print(X.size(), y.size(), epsilon_base *255 *std, alpha*255*std, criterion, handle_list, drop_rate, p)
                     # print("sag")
-                    d = 0 if i == 0 else pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
+                    d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
                     # f_i = []
                     # for j, q in enumerate(prompts):
                     #     if i == j:
@@ -560,12 +560,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         # inds = torch.randint(low=0, high=len(prompts), size=(ds.size(0),))
                         # rand_d = ds[:, :, :, :, inds]
                         # cosim = nn.CosineSimilarity(2)
-                        next_d = ds[(i+1)%len(ds)]
-                        out, feats = model(X + next_d, p, get_fs=True)
+                        ind = (i+1+(step % (len(ds) - 1)))%len(ds)
+                        next_d = ds[ind]
+                        out = model(X + next_d, p)
                         for j in range(y.size(0)):
-                            corr_mats[i][(i+1) % len(ds) + 1, inds[j], out.max(1)[1][j]] += 1
+                            corr_mats[i][ind + 1, inds[j], out.max(1)[1][j]] += 1
                         acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                        loss += criterion(out, y) + F.mse_loss()
+                        loss += criterion(out, y) #+ F.mse_loss()
                         # print(p.size())
                         # print(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t()).size())
                         # oloss = torch.abs(torch.matmul(p.squeeze(), prompts[(i + 2)%len(ds)].squeeze().t())).mean()
@@ -579,7 +580,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             # loss +=
                         with torch.no_grad():
                             for k, d in enumerate(ds):
-                                if k == (i + 1) % len(ds):
+                                if k == ind:
                                     continue
                                 outu = model(X + d, p).detach()
                                 for j in range(y.size(0)):
