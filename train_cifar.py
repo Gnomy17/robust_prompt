@@ -367,7 +367,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         #     for i, o in enumerate(opts):
         #         o.load_state_dict(checkpoint['opts'][i])
         # else:
-        opt.load_state_dict(checkpoint['opts'][0])
+        opt.load_state_dict(checkpoint['opts'])
         logger.info("Resuming at epoch {}".format(checkpoint['epoch'] + 1))
         # del checkpoint
     if args.delta_init == 'previous':
