@@ -367,7 +367,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         #     for i, o in enumerate(opts):
         #         o.load_state_dict(checkpoint['opts'][i])
         # else:
-        opt.load_state_dict(checkpoint['opt'])
+        opt.load_state_dict(checkpoint['opts'][0])
         logger.info("Resuming at epoch {}".format(checkpoint['epoch'] + 1))
         # del checkpoint
     if args.delta_init == 'previous':
@@ -547,7 +547,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         
                         # unilabs = torch.ones_like(y)/10
                         # unilabs = F.one_hot((y.max(1)[1] + 1) % 10).float()
-                        loss += criterion(out, y)
+                        loss += criterion(out, y) + criterion(out_c, y)
                         with torch.no_grad():
                             for k, d in enumerate(ds):
                                 if k == (i):
@@ -560,7 +560,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         # inds = torch.randint(low=0, high=len(prompts), size=(ds.size(0),))
                         # rand_d = ds[:, :, :, :, inds]
                         # cosim = nn.CosineSimilarity(2)
-                        ind = (i+1+(step % (len(ds) - 1)))%len(ds)
+                        ind = (i+(step))%len(ds)
                         next_d = ds[ind]
                         out = model(X + next_d, p)
                         for j in range(y.size(0)):
@@ -992,6 +992,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
                     plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png")
             else:
+                if args.method == 'ws' and args.ws == epoch:
+                    opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
                 loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
