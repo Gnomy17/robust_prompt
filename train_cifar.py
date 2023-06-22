@@ -367,7 +367,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         #     for i, o in enumerate(opts):
         #         o.load_state_dict(checkpoint['opts'][i])
         # else:
-        opt.load_state_dict(checkpoint['opts'])
+        # opt.load_state_dict(checkpoint['opts'])
         logger.info("Resuming at epoch {}".format(checkpoint['epoch'] + 1))
         # del checkpoint
     if args.delta_init == 'previous':
@@ -560,7 +560,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         # inds = torch.randint(low=0, high=len(prompts), size=(ds.size(0),))
                         # rand_d = ds[:, :, :, :, inds]
                         # cosim = nn.CosineSimilarity(2)
-                        ind = (i+(step))%len(ds)
+                        # ind = (i+(step))%len(ds)
+                        ind = (i + torch.randint(low=1, high=len(ds))) % len(ds)
                         next_d = ds[ind]
                         out = model(X + next_d, p)
                         for j in range(y.size(0)):
