@@ -509,8 +509,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 for i, p in enumerate(prompts):
                 
                     d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
-                    td = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p, target=y).detach()
-                    tds.append(td)
+                    # td = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p, target=y).detach()
+                    # tds.append(td)
                     ds.append(d)
                 accs = torch.zeros(len(prompts))
                 losses = 0
@@ -525,12 +525,23 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         corr_mats[i][0, inds[j], inds_c[j]] += 1
 
                     if args.voting_method == 'all':
-                        for j, d in enumerate(ds):
-                            # if j==i:
-                            #     continue
-                            out = model(X + d, p)
-                            acc += (out.max(1)[1] == out_c.max(1)[1]).float().mean().item() / len(ds)
-                            loss += criterion(out, y)/len(ds)
+                        ind = i + 1 if i%2 == 0 else i - 1
+                        next_d = ds[ind]
+                        out = model(X + next_d, p)
+                        
+                        acc += (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                        loss += criterion(out, y) #+ F.mse_loss()
+                        for j in range(y.size(0)):
+                            corr_mats[i][ind + 1, inds[j], out.max(1)[1][j]] += 1
+
+                        with torch.no_grad():
+                            for k, d in enumerate(ds):
+                                if k == ind:
+                                    continue
+                                oute = model(X + d, p).detach()
+                                for j in range(y.size(0)):
+                                    corr_mats[i][k + 1, inds[j], oute.max(1)[1][j]] += 1
+                        
                     elif args.voting_method == 'self':
                         out = model(X + ds[i], p)
                         inds_u = out.max(1)[1]
