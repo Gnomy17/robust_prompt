@@ -17,6 +17,14 @@ import matplotlib.pyplot as plt
 # torch.autograd.set_detect_anomaly(True)
 args = get_args()
 
+def make_prompt(length, h_dim, init_xavier=True):
+    prompt = torch.zeros(1, length, h_dim, requires_grad=True)
+    prompt.cuda()
+    if init_xavier:
+        nn.init.xavier_uniform_(prompt)
+    # prompt = nn.Parameter(prompt)
+    return prompt
+
 args.out_dir = args.out_dir+"_"+args.dataset+"_"+args.model+"_"+args.method+"_warmup"
 args.out_dir = args.out_dir +"/seed"+str(args.seed)
 if args.ARD:
@@ -317,13 +325,7 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
             handle.remove()
     return delta
 
-def make_prompt(length, h_dim, init_xavier=True):
-    prompt = torch.zeros(1, length, h_dim, requires_grad=True)
-    prompt.cuda()
-    if init_xavier:
-        nn.init.xavier_uniform_(prompt)
-    # prompt = nn.Parameter(prompt)
-    return prompt
+
 
 def CW_loss(out, y_oh, t=0):
     loss = 0
@@ -946,8 +948,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png")
                     plt.close()
             else:
-                if args.method == 'ws' and args.ws == epoch:
-                    opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+                # if args.method == 'ws' and args.ws == epoch:
+                #     opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
                 loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
