@@ -39,6 +39,7 @@ def get_args():
     parser.add_argument('--train_head', action='store_true')
     parser.add_argument('--drop-rate', default=1.0, type=float)
     parser.add_argument("--beta", type=float, default=6.0)
+    parser.add_argument("--just-eval", action='store_true')
     parser.add_argument('--eval-restarts', type=int, default=1)
     parser.add_argument('--eval-iters', type=int, default=10)
     parser.add_argument('--data-dir', default='./data', type=str)
