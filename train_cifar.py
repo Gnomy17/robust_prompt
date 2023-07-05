@@ -113,14 +113,97 @@ if args.load:
     model.load_state_dict(checkpoint['state_dict'])
 
 
-def evaluate_natural(args, model, test_loader, verbose=False):
+if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'wthigo']:
+    # from model_for_cifar.prompt import Prompt
+    # prompt = Prompt(args.prompt_length, 768)
+    
+    # if args.load:
+    #     prompt.load_state_dict(checkpoint['prompt'])
+    # params = []
+    # prompt.train()
+    # prompt.cuda()
+    if args.load:
+        prompt = (checkpoint['prompt'])[0]
+    else:
+        prompt = make_prompt(args.prompt_length, 768)
+    prompts = [prompt]
+    params = [prompt]
+    # params = {'prompt': prompt}
+    # prev_p = torch.zeros_like(prompt)
+    # prev_p.requires_grad = False
+    if args.disjoint_prompts:
+        prompt2 = make_prompt(args.prompt_length, 768)
+        params.append(prompt2)
+    if args.method == 'PAT_tar':
+        dim = 768
+        pred_dim = 512
+        predictor = nn.Sequential(nn.Linear(dim, pred_dim, bias=False),
+                                    nn.BatchNorm1d(pred_dim),
+                                    nn.ReLU(inplace=True), # hidden layer
+                                    nn.Linear(pred_dim, dim))
+        predictor.cuda()
+        params += list(predictor.parameters())
+    if args.prompt_too:
+        for p in model.parameters():
+            params.append(p)
+    else:
+        for p in model.module.head.parameters():
+            params.append(p)
+        
+    if args.optim == 'sgd':
+        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
+    elif args.optim == 'adam':
+        opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
+elif args.method in ['voting']:
+    prompts = []
+    head_params = []
+    opts = []
+    for p in model.module.head.parameters():
+        head_params.append(p)
+    for i in range(args.num_prompts):
+        if args.load:
+            p = (checkpoint['prompts'])[i]
+        else:
+            p = make_prompt(args.prompt_length, 768)
+        prompts.append(p)
+        
+    # print(len(prompts))
+    # print(args.num_prompts)
+        o  = torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+        opts.append(o)
+elif args.blocked:
+    from model_for_cifar.vit import PatchEmbed, Block
+    from model_for_cifar.prompt import PromptBlock
+    print(args.block_type)
+    if args.block_type == "attention":
+        prompt = nn.Sequential(PatchEmbed(img_size=crop_size, patch_size=args.patch, in_chans=3, embed_dim=768), Block(768, 12))
+    elif args.block_type == "cnn":
+        prompt = PromptBlock(img_size=crop_size, patch_size= args.patch, in_chans=3, middle_dim=768 ,embed_dim= 768, stride=4)
+    prompt.cuda()
+    prompt.train()
+    params = []
+    for p in prompt.parameters():
+        params.append(p)
+    for p in model.module.head.parameters():
+        params.append(p) 
+    opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+else:
+    if args.optim == 'sgd':
+        opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
+    elif args.optim == 'adam':
+        opt = torch.optim.Adam(model.parameters(), lr = args.lr_max, weight_decay=args.weight_decay)
+
+def evaluate_natural(args, model, test_loader, verbose=False, prompt=None):
     model.eval()
     with torch.no_grad():
         meter = MultiAverageMeter()
         test_loss = test_acc = test_n = 0
         def test_step(step, X_batch, y_batch):
             X, y = X_batch.cuda(), y_batch.cuda()
-            output = model(X)
+            if prompt is not None:
+                output = model(X, prompt)
+            else:
+                output = model(X)
             loss = F.cross_entropy(output, y)
             meter.update('test_loss', loss.item(), y.size(0))
             meter.update('test_acc', (output.max(1)[1] == y).float().mean(), y.size(0))
@@ -287,84 +370,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
     steps_per_epoch = len(train_loader)
     
-    if args.prompted or args.prompt_too or args.method in ['PAT_tar']:
-        # from model_for_cifar.prompt import Prompt
-        # prompt = Prompt(args.prompt_length, 768)
-        
-        # if args.load:
-        #     prompt.load_state_dict(checkpoint['prompt'])
-        # params = []
-        # prompt.train()
-        # prompt.cuda()
-        if args.load:
-            prompt = (checkpoint['prompt'])[0]
-        else:
-            prompt = make_prompt(args.prompt_length, 768)
-        prompts = [prompt]
-        params = [prompt]
-        # prev_p = torch.zeros_like(prompt)
-        # prev_p.requires_grad = False
-        if args.disjoint_prompts:
-            prompt2 = make_prompt(args.prompt_length, 768)
-            params.append(prompt2)
-        if args.method == 'PAT_tar':
-            dim = 768
-            pred_dim = 512
-            predictor = nn.Sequential(nn.Linear(dim, pred_dim, bias=False),
-                                        nn.BatchNorm1d(pred_dim),
-                                        nn.ReLU(inplace=True), # hidden layer
-                                        nn.Linear(pred_dim, dim))
-            predictor.cuda()
-            params += list(predictor.parameters())
-        if args.prompt_too:
-            for p in model.parameters():
-                params.append(p)
-        else:
-            for p in model.module.head.parameters():
-                params.append(p)
-            
-        if args.optim == 'sgd':
-            opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
-        elif args.optim == 'adam':
-            opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
-    elif args.method in ['voting', 'wthigo']:
-        prompts = []
-        head_params = []
-        opts = []
-        for p in model.module.head.parameters():
-            head_params.append(p)
-        for i in range(args.num_prompts):
-            if args.load:
-                p = (checkpoint['prompts'])[i]
-            else:
-                p = make_prompt(args.prompt_length, 768)
-            prompts.append(p)
-            
-        # print(len(prompts))
-        # print(args.num_prompts)
-            o  = torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-            opts.append(o)
-    elif args.blocked:
-        from model_for_cifar.vit import PatchEmbed, Block
-        from model_for_cifar.prompt import PromptBlock
-        print(args.block_type)
-        if args.block_type == "attention":
-            prompt = nn.Sequential(PatchEmbed(img_size=crop_size, patch_size=args.patch, in_chans=3, embed_dim=768), Block(768, 12))
-        elif args.block_type == "cnn":
-            prompt = PromptBlock(img_size=crop_size, patch_size= args.patch, in_chans=3, middle_dim=768 ,embed_dim= 768, stride=4)
-        prompt.cuda()
-        prompt.train()
-        params = []
-        for p in prompt.parameters():
-            params.append(p)
-        for p in model.module.head.parameters():
-            params.append(p) 
-        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-    else:
-        if args.optim == 'sgd':
-            opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-        elif args.optim == 'adam':
-            opt = torch.optim.Adam(model.parameters(), lr = args.lr_max, weight_decay=args.weight_decay)
+    
     if args.load:
         # if args.method == 'voting':
         #     for i, o in enumerate(opts):
@@ -389,7 +395,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
             checkpoint[k] = None
     # prev_prompt = Prompt(args.prompt_length, 768)
     # prev_prompt.set_prompt(prompt)
+    last_ind = args.prompt_length
+    current_ind = int(args.prompt_length* (4/5))
     for epoch in tqdm.tqdm(range(epoch_s + 1, args.epochs + 1)):
+        if args.just_eval:
+            break
         # evaluate_natural(args, model, test_loader, verbose=False)
         train_loss = 0
         train_acc = 0
@@ -398,7 +408,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         train_n = 0
         hist_c = torch.zeros((10)).cuda()
         hist_a = torch.zeros((10)).cuda()
-        corr_mats = [torch.zeros((len(prompts) + 2,10,10)) for _ in (prompts)]
+        corr_mats = [torch.zeros((1 + 2,10,10)) for _ in (range(1))]
         # p10 = prompt.detach().clone()
         # p10.requires_grad = False
 
@@ -716,88 +726,29 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # yc = y.detach().clone()
                 # X = X[y.max(1)[1] != 9]
                 # y = y[y.max(1)[1] != 9]
+                outc = model(X, prompt[:,current_ind:,:])
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt[:,last_ind:,:] if last_ind < args.prompt_length else None).detach()
                 losses= 0
-                outc = model(X, prompts[0])
-                loss = criterion(outc, y)
+                # print(prompt[:,current_ind:last_ind,:].size())
+                
+                
+                deltaa = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt[:,current_ind:,:]).detach()
+                outa = model(X + deltaa, prompt[:,current_ind:,:]).detach()
+                acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
+
+                out = model(X + delta, prompt[:,current_ind:,:])
+                loss = criterion(out, y) + criterion(outc, y)
+
                 loss.backward()
-                opt.step()
-                opt.zero_grad()
-                model.zero_grad()
+                # if last_ind < args.prompt_length:
+                    # prompt.grad[:,last_ind:,:] *= 0
                 losses += loss.item()
+                acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
                     corr_mats[0][0, y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                    # corr_mats[0][1, y.max(1)[1][j], outd.detach().max(1)[1][j]] += 1
-                    # corr_mats[0][2, y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
-                # tar = torch.ones(y.size(0)).long().cuda() * 9
-                # tar2 = F.one_hot((y.max(1)[1] + 1) % 9, y.size(1)).float()
-                # tar = F.one_hot(tar, y.size(1)).float()
-                
-                # tar = F.one_hot((y.max(1)[1] + 1) % 10, 10).float().cuda()
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompts[0]).detach()
-                fs = []
-                accs = torch.zeros(len(prompts))
-                accs[0] = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
-                # for p in prompts[1:]:
-                #     out, f = model(X+delta, p, get_fs=True)
-                #     fs.append(f.detach())
-                for i, p in enumerate(prompts[1:]):
-                    out, feat = model(X+delta, p, get_fs=True)
-                    feat = feat.detach()
-                    # out = out.detach()
-                    loss = criterion(out, y)
-                    losses += loss.item()
-                    # for j, f in enumerate(fs):
-                    #     if j == i:
-                    #         continue
-                    #     loss += F.mse_loss(feat[:, :args.prompt_length, :], f[:, :args.prompt_length, :])  
-                    loss.backward()
-                    opt.step()
-                    opt.zero_grad()
-                    model.zero_grad()
-                    for j in range(y.size(0)):
-                        corr_mats[0][i + 1, y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
-                    accs[i+1] = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
-                losses /= len(prompts)
-
-                acc_clean, outs = majority_vote(model, X, y, prompts)
-                for i, o in enumerate(outs):
-                    corr_mats[1][i, y.max(1)[1][j], o[j]] += 1
-                delta = simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompts=prompts).detach()
-                acc_adv, outs = majority_vote(model, X + delta, y, prompts)
-                for i, o in enumerate(outs):
-                    corr_mats[2][i, y.max(1)[1][j], o[j]] += 1
-                # d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=tar).detach()
-                # d_p = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=tar2).detach()
-                # cosim = nn.CosineSimilarity(1)
-                # inds = y.max(1)[1] != 5
-                # mean1 += abs(cosim(d[inds].view(d[inds].size(0), -1), d_p[inds].view(d_p[inds].size(0), -1)).mean().item())
-                # mean2 += abs(cosim(delta[inds].view(d[inds].size(0), -1), d[inds].view(d_p[inds].size(0), -1)).mean().item())
-                # mean3 += abs(cosim(delta[inds].view(d[inds].size(0), -1), d_p[inds].view(d_p[inds].size(0), -1)).mean().item())
-                # count += 1
-                # if (step + 1) % 10 == 0:
-                #     logger.info("{:.4f}, {:.4f}, {:.4f}".format(mean1/count, mean2/count, mean3/count))
-                # delta[y.max(1)[1] == 5] = d[y.max(1)[1] == 5]
-                # dp = delta.clone()
-                # delta[y.max(1)[1] == 5] = 0
-                # delta[y.max(1)[1] == 6 ] = 0
-                # delta[y.max(1)[1] == 5 ] = 0
-                # outa = model(X + delta, prompt)
-                # labs = torch.ones_like(y)/10
-                # outd = model(X + d, prompt).detach()
-                # outdp = model(X + d_p, prompt).detach()
-                # n = torch.zeros_like(X)
-                # n.uniform_()
-                # outu = model(n, prompt).detach()
-                # loss = criterion(outa, tar) + criterion(outc, y) #+ F.mse_loss(features_c.detach(), features_a)
-                # loss.backward()
-                # outaa = model(X + dp, prompt).detach()
-                # acc_p = (outd.max(1)[1] == y.max(1)[1]).float().mean().item() #torch.var(outa, dim=1).mean().item()
-                
-                # outu = model(X + d, prompt).detach()
-                # acc = (tar.max(1)[1] == outa.max(1)[1]).float().mean().item()
-                # print("sag")
-                
-                return accs, accs, losses, acc_clean, acc_adv
+                    corr_mats[0][1, y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
+                    corr_mats[0][2, y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
+                return loss, acc, y, acc_a, handle_list
             elif args.method == 'TRADES':
                 X = X.cuda()
                 y = y.cuda()
@@ -918,7 +869,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     return loss, acc, y, p_acc, handle_list
             
             return loss, acc,y, acc.item(), handle_list
-        if args.method in ['voting','wthigo']:
+        if args.method in ['voting']:
             accs_ind = torch.zeros(len(prompts))
             accs_vote = torch.zeros(len(prompts))
 
@@ -937,7 +888,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             if len(X_) == 0:
                 break
             # print(y.size())
-            if args.method in ['voting', 'wthigo']:
+            if args.method in ['voting']:
                 accs, accs_maj, losses, acc_clean, acc_adv = train_step(X, y, epoch_now, mixup_fn, hist_a, hist_c, corr_mats)
                 train_n += y_.size(0)
                 train_loss += losses * y_.size(0)
@@ -993,6 +944,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
                         axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
                     plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png")
+                    plt.close()
             else:
                 if args.method == 'ws' and args.ws == epoch:
                     opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
@@ -1085,9 +1037,18 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                     ))
             lr = lr_schedule(epoch_now)
-            # opt.param_groups[0].update(lr=lr)
-            for o in opts:
-                o.param_groups[0].update(lr=lr)
+            opt.param_groups[0].update(lr=lr)
+            # for o in opts:
+            #     o.param_groups[0].update(lr=lr)
+        if epoch % 2 ==0:
+            print("Changing from {:d}, {:d}".format(last_ind, current_ind))
+            last_ind = current_ind
+            current_ind -= args.prompt_length//5
+            print("to {:d}, {:d}".format(last_ind, current_ind))
+        
+        if current_ind < 0:
+            current_ind = 0
+            last_ind = args.prompt_length//5
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
         if args.test:
             with open(os.path.join(args.out_dir, 'test_PGD20.txt'),'a') as new:
@@ -1100,7 +1061,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 meter_test = evaluate_natural(args, model, test_loader, verbose=False)
                 new.write('{}\n'.format(meter_test))
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
-            if args.method in ['voting', 'wthigo']:
+            if args.method in ['voting']:
                 torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opts': [opt], 'prompts': prompts}, path)
             else:
                 if args.prompted or args.prompt_too:
@@ -1118,19 +1079,24 @@ train_adv(args, model, train_loader, test_loader, logger)
 args.eval_iters = 20
 logger.info(args.out_dir)
 print(args.out_dir)
-evaluate_natural(args, model, test_loader, verbose=False)
+evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
-cw_loss, cw_acc = evaluate_CW(args, model, test_loader)
-logger.info('cw20 : loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
+# # cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt)
+# # logger.info('cw20 : loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
+
+args.eval_iters = 1
+args.alpha = 10
+pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt)
+logger.info('FGSM : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
+
+args.eval_iters = 10
+args.alpha = 2
+pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt)
+logger.info('PGD10: loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
 
 
-pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader)
-logger.info('PGD20 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
 
 
-args.eval_iters = 100
-pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader)
-logger.info('PGD100 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
 
 
 at_path = os.path.join(args.out_dir, 'result_'+'_autoattack.txt')

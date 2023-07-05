@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import numpy as np
 
 
-def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None):
+def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None):
     max_loss = torch.zeros(y.shape[0]).cuda()
     max_delta = torch.zeros_like(X).cuda()
     for zz in range(restarts):
@@ -13,7 +13,10 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
         delta.data = clamp(delta, lower_limit - X, upper_limit - X)
         delta.requires_grad = True
         for _ in range(attack_iters):
-            output = model(X + delta)
+            if prompt is not None:
+                output = model(X + delta, prompt)
+            else:
+                output = model(X + delta)
             index = torch.where(output.max(1)[1] == y)
             if len(index[0]) == 0:
                 break
@@ -26,12 +29,17 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
             d = clamp(d, lower_limit - X[index[0], :, :, :], upper_limit - X[index[0], :, :, :])
             delta.data[index[0], :, :, :] = d
             delta.grad.zero_()
-        all_loss = F.cross_entropy(model(X+delta), y, reduction='none').detach()
+        delta = delta.detach()
+        output = output.detach()
+        if prompt is not None:
+            all_loss = F.cross_entropy(model(X+delta, prompt), y, reduction='none').detach()
+        else:
+            all_loss = F.cross_entropy(model(X+delta), y, reduction='none').detach()
         max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
         max_loss = torch.max(max_loss, all_loss)
     return max_delta
 
-def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None):
+def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None):
     max_loss = torch.zeros(y.shape[0]).cuda()
     max_delta = torch.zeros_like(X).cuda()
     for zz in range(restarts):
@@ -41,7 +49,10 @@ def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
         delta.data = clamp(delta, lower_limit - X, upper_limit - X)
         delta.requires_grad = True
         for _ in range(attack_iters):
-            output = model(X + delta)
+            if prompt is not None:
+                output = model(X + delta, prompt)
+            else:
+                output = model(X + delta)
             index = torch.where(output.max(1)[1] == y)
             if len(index[0]) == 0:
                 break
@@ -54,12 +65,15 @@ def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
             d = clamp(d, lower_limit - X[index[0], :, :, :], upper_limit - X[index[0], :, :, :])
             delta.data[index[0], :, :, :] = d
             delta.grad.zero_()
-        all_loss = CW_loss(model(X+delta), y, reduction=False).detach()
+        if prompt is not None:
+            all_loss = CW_loss(model(X+delta, prompt), y, reduction=False).detach()
+        else:
+            all_loss = CW_loss(model(X+delta), y, reduction=False).detach()
         max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
         max_loss = torch.max(max_loss, all_loss)
     return max_delta
 
-def evaluate_pgd(args, model, test_loader, eval_steps=None):
+def evaluate_pgd(args, model, test_loader, eval_steps=None, prompt=None):
     attack_iters = args.eval_iters # 50
     restarts = args.eval_restarts # 10
     pgd_loss = 0
@@ -79,9 +93,12 @@ def evaluate_pgd(args, model, test_loader, eval_steps=None):
     alpha = (args.alpha / 255.) / std
     for step, (X, y) in enumerate(test_loader):
         X, y = X.cuda(), y.cuda()
-        pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit)
+        pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt)
         with torch.no_grad():
-            output = model(X + pgd_delta)
+            if prompt is not None:
+                output = model(X + pgd_delta, prompt)
+            else:
+                output = model(X + pgd_delta)
             loss = F.cross_entropy(output, y)
             pgd_loss += loss.item() * y.size(0)
             pgd_acc += (output.max(1)[1] == y).sum().item()
@@ -93,7 +110,7 @@ def evaluate_pgd(args, model, test_loader, eval_steps=None):
                 pgd_loss/n, pgd_acc/n)
     return pgd_loss/n, pgd_acc/n
 
-def evaluate_CW(args, model, test_loader, eval_steps=None):
+def evaluate_CW(args, model, test_loader, eval_steps=None, prompt=None):
     attack_iters = args.eval_iters # 50
     restarts = args.eval_restarts # 10
     cw_loss = 0
@@ -113,9 +130,12 @@ def evaluate_CW(args, model, test_loader, eval_steps=None):
     alpha = (args.alpha / 255.) / std
     for step, (X, y) in enumerate(test_loader):
         X, y = X.cuda(), y.cuda()
-        pgd_delta = attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit)
+        pgd_delta = attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt)
         with torch.no_grad():
-            output = model(X + pgd_delta)
+            if prompt is not None:
+                output = model(X + pgd_delta, prompt)
+            else:
+                output = model(X + pgd_delta)
             loss = CW_loss(output, y)
             cw_loss += loss.item() * y.size(0)
             cw_acc += (output.max(1)[1] == y).sum().item()
