@@ -738,7 +738,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # yc = y.detach().clone()
                 # X = X[y.max(1)[1] != 9]
                 # y = y[y.max(1)[1] != 9]
-                outc = model(X, prompt)
+                outc = model(X, joint_p(prompt, done_prompt))
                 delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=done_prompt).detach()
                 losses= 0
                 # print(prompt[:,current_ind:last_ind,:].size())
@@ -750,7 +750,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
                 out = model(X + delta, joint_p(prompt, done_prompt))
                 loss = criterion(out, y) + criterion(outc, y)
-
+                # if done_prompt is not None:
+                #     print(torch.autograd.grad(loss, done_prompt))
                 loss.backward()
                 # if last_ind < args.prompt_length:
                     # prompt.grad[:,last_ind:,:] *= 0
@@ -1051,22 +1052,26 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         opt.param_groups[0]['lr'],
                             train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                     ))
-                # break
+                # if step % 5 == 0:
+                #     break
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
             # for o in opts:
             #     o.param_groups[0].update(lr=lr)
         if epoch % 2 ==0 and args.method == 'splits':
             logger.info("Adding {:d} tokens".format(args.prompt_length))
-            done_prompt = joint_p(prompt, done_prompt).detach()
+            done_prompt = prompt if done_prompt is None else torch.cat((prompt.detach(), done_prompt.detach()), dim=1).requires_grad_()#joint_p(prompt, done_prompt)#.requires_grad_()
+            # done_prompt.requires_grad = True
             prompt = make_prompt(args.prompt_length, 768)
-            # opt.params = [prompt] + list(model.module.head.parameters())
-            opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
+            # prompt.requires_grad = True
+            # opt.add_param_group({"params" : [prompt})
             logger.info("Total length is " + str(prompt.size(1) + done_prompt.size(1)))
             # print('sag')
             # print(prompt[:,0,-1])
             # for i in range(done_prompt.size(1)//10):
             #     print(done_prompt[:,i * 10,-1])
+            opt = torch.optim.SGD([prompt, done_prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
+            
             # current_ind -= 20
             # print("to {:d}, {:d}".format(last_ind, current_ind))
         
