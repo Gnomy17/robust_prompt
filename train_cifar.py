@@ -1045,12 +1045,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
         if epoch % 2 ==0:
             print("Changing from {:d}, {:d}".format(last_ind, current_ind))
             last_ind = current_ind
-            current_ind -= args.prompt_length//5
+            current_ind -= 20
             print("to {:d}, {:d}".format(last_ind, current_ind))
         
         if current_ind < 0:
             current_ind = 0
-            last_ind = args.prompt_length//5
+            last_ind = 20
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
         if args.test:
             with open(os.path.join(args.out_dir, 'test_PGD20.txt'),'a') as new:
