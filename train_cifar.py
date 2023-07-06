@@ -133,7 +133,14 @@ if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'splits']:
     if args.method == 'splits':
         done_prompt = None
     if args.load:
-        prompt = (checkpoint['prompt'])[0]
+        if args.method == 'splits':
+            if args.just_eval:
+                prompt = joint_p(checkpoint['prompt'], checkpoint['done_prompt'])
+            else:
+                prompt = checkpoint['prompt']
+                done_prompt = checkpoint['done_prompt']
+        else:
+            prompt = (checkpoint['prompt'])[0]
     else:
         prompt = make_prompt(args.prompt_length, 768)
     prompts = [prompt]
@@ -1080,6 +1087,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
             if args.method in ['voting']:
                 torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opts': [opt], 'prompts': prompts}, path)
+            elif args.method in ['splits']:
+                torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opts': [opt], 'prompt': [prompt], 'done': [done_prompt]}, path)
             else:
                 if args.prompted or args.prompt_too:
                     prompt_save = [prompt, prompt2] if args.disjoint_prompts else [prompt]
