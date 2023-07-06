@@ -121,7 +121,7 @@ if args.load:
     model.load_state_dict(checkpoint['state_dict'])
 
 
-if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'wthigo']:
+if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'splits']:
     # from model_for_cifar.prompt import Prompt
     # prompt = Prompt(args.prompt_length, 768)
     
@@ -130,6 +130,8 @@ if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'wthigo']:
     # params = []
     # prompt.train()
     # prompt.cuda()
+    if args.method == 'splits':
+        done_prompt = None
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
@@ -273,7 +275,7 @@ def simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, dr
         for handle in handle_list:
             handle.remove()
     return delta
-
+joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
 def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None, target=None, avoid= None, deep=False):
     model.eval()
     epsilon = epsilon_base.cuda()
@@ -350,7 +352,7 @@ def majority_vote(model, X, y, prompts):
 
 
 def train_adv(args, model, ds_train, ds_test, logger):
-    
+    global prompt, done_prompt, opt
 
     epsilon_base = (args.epsilon / 255.) / std
     alpha = (args.alpha / 255.) / std
@@ -397,8 +399,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
             checkpoint[k] = None
     # prev_prompt = Prompt(args.prompt_length, 768)
     # prev_prompt.set_prompt(prompt)
-    last_ind = args.prompt_length
-    current_ind = int(args.prompt_length* (4/5))
+    # last_ind = args.prompt_length
+    # current_ind = int(args.prompt_length* (4/5))
     for epoch in tqdm.tqdm(range(epoch_s + 1, args.epochs + 1)):
         if args.just_eval:
             break
@@ -415,7 +417,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         # p10.requires_grad = False
 
         def train_step(X, y, t, mixup_fn, hist_a, hist_c, corr_mats):
-            global mean1, mean2, count, mean3
+            global prompt, done_prompt, opt
             model.train()
             # drop_calculation
             def attn_drop_mask_grad(module, grad_in, grad_out, drop_rate):
@@ -720,7 +722,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # outu = model(X + delta, prompt).detach()
                 acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
                 return loss, acc, y, acc_a, handle_list
-            elif args.method == 'wthigo':
+            elif args.method == 'splits':
+                
                 X = X.cuda()
                 y = y.cuda()
                 if mixup_fn is not None:
@@ -728,17 +731,17 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # yc = y.detach().clone()
                 # X = X[y.max(1)[1] != 9]
                 # y = y[y.max(1)[1] != 9]
-                outc = model(X, prompt[:,current_ind:,:])
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt[:,last_ind:,:] if last_ind < args.prompt_length else None).detach()
+                outc = model(X, prompt)
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=done_prompt).detach()
                 losses= 0
                 # print(prompt[:,current_ind:last_ind,:].size())
                 
                 
-                deltaa = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt[:,current_ind:,:]).detach()
-                outa = model(X + deltaa, prompt[:,current_ind:,:]).detach()
+                deltaa = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=joint_p(prompt, done_prompt)).detach()
+                outa = model(X + deltaa, joint_p(prompt, done_prompt)).detach()
                 acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
 
-                out = model(X + delta, prompt[:,current_ind:,:])
+                out = model(X + delta, joint_p(prompt, done_prompt))
                 loss = criterion(out, y) + criterion(outc, y)
 
                 loss.backward()
@@ -955,6 +958,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 train_loss += loss.item() * y_.size(0)
                 train_acc += acc * y_.size(0)
                 def clean_acc(X, y):
+                    global prompt, done_prompt
                     X = X.cuda()
                     y = y.cuda()
                     # X = X[y.size(0)]
@@ -962,7 +966,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         if args.disjoint_prompts:
                             output = model(X, (prompt2 + prompt)/2)
                         else:
-                            output = model(X, prompt)
+                            output = model(X, joint_p(prompt, done_prompt))
                     elif args.blocked:
                         output = model(X, prompt(X))
                     else:
@@ -974,7 +978,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 train_clean += clean_acc(X, y).item() * y_.size(0)
                 train_n += y_.size(0)
                 grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) + [prompt], args.grad_clip)
+                # cp = prompt.clone()
                 opt.step()
+                # print(prompt - cp)
                 opt.zero_grad()
                 model.zero_grad()
                 if args.prompted and args.disjoint_prompts:
@@ -1038,19 +1044,28 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         opt.param_groups[0]['lr'],
                             train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                     ))
+                # break
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
             # for o in opts:
             #     o.param_groups[0].update(lr=lr)
-        if epoch % 2 ==0:
-            print("Changing from {:d}, {:d}".format(last_ind, current_ind))
-            last_ind = current_ind
-            current_ind -= 20
-            print("to {:d}, {:d}".format(last_ind, current_ind))
+        if epoch % 2 ==0 and args.method == 'splits':
+            logger.info("Adding {:d} tokens".format(args.prompt_length))
+            done_prompt = joint_p(prompt, done_prompt).detach()
+            prompt = make_prompt(args.prompt_length, 768)
+            # opt.params = [prompt] + list(model.module.head.parameters())
+            opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
+            logger.info("Total length is " + str(prompt.size(1) + done_prompt.size(1)))
+            # print('sag')
+            # print(prompt[:,0,-1])
+            # for i in range(done_prompt.size(1)//10):
+            #     print(done_prompt[:,i * 10,-1])
+            # current_ind -= 20
+            # print("to {:d}, {:d}".format(last_ind, current_ind))
         
-        if current_ind < 0:
-            current_ind = 0
-            last_ind = 20
+        # if current_ind < 0:
+        #     current_ind = 0
+        #     last_ind = 20
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
         if args.test:
             with open(os.path.join(args.out_dir, 'test_PGD20.txt'),'a') as new:
