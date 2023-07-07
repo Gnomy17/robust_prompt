@@ -135,10 +135,10 @@ if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'splits']:
     if args.load:
         if args.method == 'splits':
             if args.just_eval:
-                prompt = joint_p(checkpoint['prompt'], checkpoint['done_prompt'])
+                prompt = joint_p(checkpoint['prompt'][0], checkpoint['done'][0])
             else:
-                prompt = checkpoint['prompt']
-                done_prompt = checkpoint['done_prompt']
+                prompt = checkpoint['prompt'][0]
+                done_prompt = checkpoint['done'][0]
         else:
             prompt = (checkpoint['prompt'])[0]
     else:
