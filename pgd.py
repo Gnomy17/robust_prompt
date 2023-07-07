@@ -80,7 +80,7 @@ def evaluate_splits(args, model, test_loader, prompt):
     pgd_acc = 0
     n = 0
     model.eval()
-    print('Evaluating with PGD {} steps and {} restarts'.format(attack_iters, restarts))
+    print('Evaluating with splits'.format(attack_iters, restarts))
     if args.dataset=="cifar":
         mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
         std = torch.tensor(cifar10_std).view(3,1,1).cuda()
@@ -97,6 +97,7 @@ def evaluate_splits(args, model, test_loader, prompt):
         deltas = []
         X, y = X.cuda(), y.cuda()
         for i in range(num_splits):
+            print(prompt[:,i*args.prompt_length:,:].size())
             pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt[:,i*args.prompt_length:,:]).detach()
             deltas.append(pgd_delta)
         
