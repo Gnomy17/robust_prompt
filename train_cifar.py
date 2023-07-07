@@ -1107,7 +1107,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
 train_adv(args, model, train_loader, test_loader, logger)
 
-args.eval_iters = 20
+# args.eval_iters = 20
 logger.info(args.out_dir)
 print(args.out_dir)
 evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
