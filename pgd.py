@@ -103,7 +103,7 @@ def evaluate_splits(args, model, test_loader, prompt):
         
         for i in range(num_splits):
             for j, d in enumerate(deltas):
-                out = model(X + d, prompt[:, i*args.prompt_length, :]).detach()
+                out = model(X + d,None if i + 1 == num_splits else prompt[:, i*args.prompt_length, :]).detach()
                 for k in range(y.size(0)):
                     mats[i][j][y.max(1)[1][k], out.max(1)[1][k]] += 1
             # with torch.no_grad():
