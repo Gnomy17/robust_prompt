@@ -1117,9 +1117,9 @@ evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
 mats = evaluate_splits(args, model, test_loader, prompt=prompt[:,20:,:])
 fg, axarr = plt.subplots(len(mats), len(mats))
-for i, c in enumerate(mats):
+for i in range(len(mats)):
     for j in range(len(mats)):
-        axarr[i,j].matshow(c)
+        axarr[i,j].matshow(mats[i][j])
 plt.savefig(args.out_dir + "/mat_of_splits_len{:d}.png".format(str(prompt.size(1) - 20)))
 logger.info('Saved mat to outdir')
 
