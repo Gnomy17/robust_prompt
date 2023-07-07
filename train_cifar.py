@@ -16,7 +16,7 @@ from auto_LiRPA.utils import logger
 import matplotlib.pyplot as plt
 # torch.autograd.set_detect_anomaly(True)
 args = get_args()
-
+joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
 def make_prompt(length, h_dim, init_xavier=True):
     prompt = torch.zeros(1, length, h_dim, requires_grad=True)
     prompt.cuda()
@@ -282,7 +282,7 @@ def simul_pgd(model, X, y, epsilon_base, alpha, args, criterion, handle_list, dr
         for handle in handle_list:
             handle.remove()
     return delta
-joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
+
 def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None, target=None, avoid= None, deep=False):
     model.eval()
     epsilon = epsilon_base.cuda()
