@@ -97,8 +97,8 @@ def evaluate_splits(args, model, test_loader, prompt):
         deltas = []
         X, y = X.cuda(), y.cuda()
         for i in range(num_splits):
-            print(prompt[:,i*args.prompt_length:,:].size())
-            pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt[:,i*args.prompt_length:,:]).detach()
+            # print(prompt[:,i*args.prompt_length:,:].size())
+            pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=None if i +1 == num_splits else prompt[:,i*args.prompt_length:,:]).detach()
             deltas.append(pgd_delta)
         
         for i in range(num_splits):
