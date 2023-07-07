@@ -10,7 +10,7 @@ from parser_cifar import get_args
 from auto_LiRPA.utils import MultiAverageMeter
 from utils import *
 from torch.autograd import Variable
-from pgd import evaluate_pgd,evaluate_CW
+from pgd import evaluate_pgd,evaluate_CW,evaluate_splits
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
 import matplotlib.pyplot as plt
