@@ -1115,6 +1115,14 @@ evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 # # cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt)
 # # logger.info('cw20 : loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
 
+mats = evaluate_splits(args, model, test_loader, prompt=prompt[:,20:,:])
+fg, axarr = plt.subplots(len(mats), len(mats))
+for i, c in enumerate(mats):
+    for j in range(len(mats)):
+        axarr[i,j].matshow(c)
+plt.savefig(args.out_dir + "/mat_of_splits_len{:d}.png".format(str(prompt.size(1) - 20)))
+logger.info('Saved mat to outdir')
+
 args.eval_iters = 1
 args.alpha = 10
 pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt)
@@ -1124,8 +1132,6 @@ args.eval_iters = 10
 args.alpha = 2
 pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt)
 logger.info('PGD10: loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
-
-
 
 
 

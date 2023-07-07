@@ -73,6 +73,54 @@ def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
         max_loss = torch.max(max_loss, all_loss)
     return max_delta
 
+def evaluate_splits(args, model, test_loader, prompt):
+    attack_iters = args.eval_iters # 50
+    restarts = args.eval_restarts # 10
+    pgd_loss = 0
+    pgd_acc = 0
+    n = 0
+    model.eval()
+    print('Evaluating with PGD {} steps and {} restarts'.format(attack_iters, restarts))
+    if args.dataset=="cifar":
+        mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
+        std = torch.tensor(cifar10_std).view(3,1,1).cuda()
+    if args.dataset=="imagenette" or args.dataset=="imagenet" :
+        mu = torch.tensor(imagenet_mean).view(3,1,1).cuda()
+        std = torch.tensor(imagenet_std).view(3,1,1).cuda()
+    upper_limit = ((1 - mu)/ std)
+    lower_limit = ((0 - mu)/ std)
+    epsilon = (args.epsilon / 255.) / std
+    alpha = (args.alpha / 255.) / std
+    num_splits = prompt.size(1)//args.prompt_length
+    mats = [[torch.zeros((10, 10)) for _ in range(num_splits)] for __ in range(num_splits)]
+    for step, (X, y) in enumerate(test_loader):
+        deltas = []
+        X, y = X.cuda(), y.cuda()
+        for i in range(num_splits):
+            pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt[:,i*args.prompt_length:,:]).detach()
+            deltas.append(pgd_delta)
+        
+        for i in range(num_splits):
+            for j, d in enumerate(deltas):
+                out = model(X + d, prompt[:, i*args.prompt_length, :]).detach()
+                for k in range(y.size(0)):
+                    mats[i][j][y.max(1)[1][k], out.max(1)[1][k]] += 1
+            # with torch.no_grad():
+            #     if prompt is not None:
+            #         output = model(X + pgd_delta, prompt)
+            #     else:
+            #         output = model(X + pgd_delta)
+            #     loss = F.cross_entropy(output, y)
+            #     pgd_loss += loss.item() * y.size(0)
+            #     pgd_acc += (output.max(1)[1] == y).sum().item()
+            #     n += y.size(0)
+            # if step + 1 == eval_steps:
+            #     break
+            # if (step + 1) % 10 == 0 or step + 1 == len(test_loader):
+            #     print('{}/{}'.format(step+1, len(test_loader)), 
+                    # pgd_loss/n, pgd_acc/n)
+    return mats
+
 def evaluate_pgd(args, model, test_loader, eval_steps=None, prompt=None):
     attack_iters = args.eval_iters # 50
     restarts = args.eval_restarts # 10
