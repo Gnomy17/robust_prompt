@@ -1058,9 +1058,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
             opt.param_groups[0].update(lr=lr)
             # for o in opts:
             #     o.param_groups[0].update(lr=lr)
-        if epoch % 2 ==0 and args.method == 'splits':
+        if epoch % args.split_interval ==0 and args.method == 'splits':
             logger.info("Adding {:d} tokens".format(args.prompt_length))
-            done_prompt = prompt if done_prompt is None else torch.cat((prompt.detach(), done_prompt.detach()), dim=1).requires_grad_()#joint_p(prompt, done_prompt)#.requires_grad_()
+            done_prompt = prompt if done_prompt is None else torch.cat((prompt.detach(), done_prompt.detach()), dim=1)#.requires_grad_()#joint_p(prompt, done_prompt)#.requires_grad_()
             # done_prompt.requires_grad = True
             prompt = make_prompt(args.prompt_length, 768)
             # prompt.requires_grad = True
@@ -1070,7 +1070,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             # print(prompt[:,0,-1])
             # for i in range(done_prompt.size(1)//10):
             #     print(done_prompt[:,i * 10,-1])
-            opt = torch.optim.SGD([prompt, done_prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
+            opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
             
             # current_ind -= 20
             # print("to {:d}, {:d}".format(last_ind, current_ind))
@@ -1110,17 +1110,19 @@ train_adv(args, model, train_loader, test_loader, logger)
 # args.eval_iters = 20
 logger.info(args.out_dir)
 print(args.out_dir)
-evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
+# evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
 # # cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt)
 # # logger.info('cw20 : loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
-
-mats = evaluate_splits(args, model, test_loader, prompt=prompt[:,20:,:])
+# print("sag")
+mats, accs = evaluate_splits(args, model, test_loader, prompt=prompt[:,20:,:])
 fg, axarr = plt.subplots(len(mats), len(mats))
+
 for i in range(len(mats)):
     for j in range(len(mats)):
         axarr[i,j].matshow(mats[i][j])
-plt.savefig(args.out_dir + "/mat_of_splits_len{:d}.png".format(str(prompt.size(1) - 20)))
+        axarr[i,j].set_ylabel("{:.2f}".format(accs[i, j]))
+plt.savefig(args.out_dir + "/mat_of_splits_len{}.png".format(str(prompt.size(1) - 20)))
 logger.info('Saved mat to outdir')
 
 args.eval_iters = 1
