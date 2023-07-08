@@ -44,6 +44,7 @@ def get_args():
     parser.add_argument('--eval-iters', type=int, default=10)
     parser.add_argument('--data-dir', default='./data', type=str)
     parser.add_argument('--epochs', default=40, type=int)
+    parser.add_argument('--split-interval', default=2, type=int)
     parser.add_argument('--lr-min', default=0., type=float)
     parser.add_argument('--lr-max', default=0.1, type=float)
     parser.add_argument('--weight-decay', default=1e-4, type=float)
