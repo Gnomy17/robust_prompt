@@ -1052,8 +1052,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         opt.param_groups[0]['lr'],
                             train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                     ))
-                # if step % 5 == 0:
-                #     break
+                if step % 5 == 0:
+                    break
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
             # for o in opts:
