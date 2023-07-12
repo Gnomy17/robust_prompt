@@ -14,6 +14,7 @@ from pgd import evaluate_pgd,evaluate_CW,evaluate_splits
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
 import matplotlib.pyplot as plt
+from buffer import Buffer
 # torch.autograd.set_detect_anomaly(True)
 args = get_args()
 joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
@@ -121,7 +122,7 @@ if args.load:
     model.load_state_dict(checkpoint['state_dict'])
 
 
-if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'splits']:
+if args.prompted or args.prompt_too or args.method in ['past_at', 'splits']:
     # from model_for_cifar.prompt import Prompt
     # prompt = Prompt(args.prompt_length, 768)
     
@@ -132,12 +133,15 @@ if args.prompted or args.prompt_too or args.method in ['PAT_tar', 'splits']:
     # prompt.cuda()
     if args.method == 'splits':
         done_prompt = None
+    if args.method == 'past_at':
+        past_prompts = []
+        buff = Buffer(args.buffer_size, 'cuda')
     if args.load:
         if args.method == 'splits':
             if args.just_eval:
                 prompt = joint_p(checkpoint['prompt'][0].detach(), checkpoint['done'][0].detach())
             else:
-                prompt = checkpoint['prompt'][0]
+                prompt = make_prompt(args.prompt_length, 768)#checkpoint['prompt'][0]
                 done_prompt = checkpoint['done'][0]
         else:
             prompt = (checkpoint['prompt'])[0]
@@ -419,7 +423,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         train_n = 0
         hist_c = torch.zeros((10)).cuda()
         hist_a = torch.zeros((10)).cuda()
-        corr_mats = [torch.zeros((1 + 2,10,10)) for _ in (range(1))]
+        corr_mats = [torch.zeros((10,10)) for _ in (range(3))]
         # p10 = prompt.detach().clone()
         # p10.requires_grad = False
 
@@ -610,7 +614,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                                     corr_mats[i][k + 1, inds[j], oute.max(1)[1][j]] += 1
                     
                     # loss += criterion(out_c, y)
-                    
+                    # past_prompts
                     accs[i] = acc                
                     opts[i].zero_grad()
                     model.zero_grad()
@@ -655,7 +659,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     output = model(X)
                 # print(output.shape, y.shape)
                 loss = criterion(output, y)
-            elif args.method == 'PAT_tar':
+            elif args.method == 'past_at':
                 X = X.cuda()
                 y = y.cuda()
                 if mixup_fn is not None:
@@ -664,71 +668,46 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc = 0
                 loss = 0
                 losses = 0
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                X_adv = X + delta
+                y_adv = y
+                if not buff.is_empty():
+                    buf_inputs, buf_labels = buff.get_data(X.size(0))
+                    X_train = torch.cat((X_adv, buf_inputs))
+                    y_train = torch.cat((y_adv, buf_labels))
+                else:
+                    X_train = X_adv
+                    y_train = y
+                X_train = torch.cat((X_train, X))
+                y_train = torch.cat((y_train, y))
+                output = model(X_train, prompt)
+                loss = criterion(output, y_train)
+                # deltas = []
+                # for p in past_prompts:
+                #     d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
+                #     deltas.append(d)
                 
-                outc, fc = model(X, prompt, get_fs=True)
-                d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                # d10 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p10).detach()
-                # d20 =  pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p20).detach()
-                # outa.detach()
-                # fc.detach()
-                # fa.detach()
+                # for d in deltas:
+                #     X_adv = torch.cat([X_adv, X+d], dim=0)
+                #     y_adv = torch.cat([y_adv, y], dim=0)
+                # output = model(X_adv, prompt)
                 
-                # if (step + 1) % 10 == 0:
-                    # outc = model(X, prompt)
-                    # loss += criterion(outc, y)
-                    # pc20 = pc10.detach().clone()
-                    # p10.data = prompt.detach().data
-                    # pc20.requires_grad = False
-                    # p10.requires_grad = False
-                    # outa = outa.detach()
-                    # outa = model(X + d, prompt).detach()
-                    # fa.detach()
-                    # outa= outc
-                # else:
-                outa, fa = model(X + d, prompt, get_fs=True)
-                outa = outa.detach()
-                loss = criterion(outc, y)
-                # outu = model(X + d10, prompt).detach()
-                outc.detach()
-                closs =  (F.mse_loss(predictor(fa[:, args.prompt_length, :]), fc[:, args.prompt_length, :].detach()) + F.mse_loss(fa[:, args.prompt_length, :].detach(), predictor(fc[:, args.prompt_length, :])))
-                count += 1
-                mean1 += loss.item()
-                mean2 += closs.item()
-                if (step + 1) % 10 == 0:
-                        logger.info("{:.4f}, {:.4f}".format(mean1/count, mean2/count))
-                loss += closs
-                # cosim = nn.CosineSimilarity(2)
-                # loss -= cosim(fc[:, :, :], fa[:, :, :]).mean()
-                # losses += loss.item()
-                # opt.zero_grad()
-                # model.zero_grad()
-                # loss.backward()
-                # opt.step()
-                # opt.zero_grad()
-                # model.zero_grad()
-                # i = torch.randint(0, 10, (1,1)).item()
-                # tar = torch.ones(y.size(0)).long().cuda() * i
-                # tar = F.one_hot(tar, y.size(1)).float()
-                
-                # out = model(X + d, prompt)
-                acc = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
-                # loss += criterion(out, y)
-                # losses += loss.item()
-                opt.zero_grad()
                 model.zero_grad()
                 loss.backward()
-                # opt.step()
-                # opt.zero_grad()
-                # model.zero_grad()
-                # delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                # outa = model(X + delta, prompt).detach() 
+                buff.add_data(examples=X_adv.detach(),
+                             labels=y_adv.detach())
+                outu = model(X_adv, prompt).detach()
+                outc = model(X, prompt).detach()
+                acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
-                    corr_mats[0][0, y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                    corr_mats[0][1, y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
-                    corr_mats[0][2, y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
-                # outu = model(X + delta, prompt).detach()
-                acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
-                return loss, acc, y, acc_a, handle_list
+                    corr_mats[1][y.max(1)[1][j], output.detach().max(1)[1][j]] += 1
+                    corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
+                    corr_mats[0][y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
+                # for j in range(y.size(0), y_adv.size(0)):
+                #     corr_mats[2][y_adv.max(1)[1][j], output.detach().max(1)[1][j]]
+                acc_a = (output.max(1)[1] == y_train.max(1)[1]).float().mean().item() 
+                acc = (outu.max(1)[1] == y.max(1)[1]).float().mean().item()
+                return loss, acc, y, acc_a, handle_list, acc_c
             elif args.method == 'splits':
                 
                 X = X.cuda()
@@ -739,12 +718,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # X = X[y.max(1)[1] != 9]
                 # y = y[y.max(1)[1] != 9]
                 outc = model(X, joint_p(prompt, done_prompt))
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=done_prompt).detach()
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=joint_p(prompt, done_prompt)).detach()
                 losses= 0
                 # print(prompt[:,current_ind:last_ind,:].size())
                 
                 
-                deltaa = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=joint_p(prompt, done_prompt)).detach()
+                deltaa = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=done_prompt).detach()
                 outa = model(X + deltaa, joint_p(prompt, done_prompt)).detach()
                 acc_a = (outa.max(1)[1] == y.max(1)[1]).float().mean().item() 
 
@@ -961,29 +940,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
             else:
                 # if args.method == 'ws' and args.ws == epoch:
                 #     opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-                loss, acc,y, p_acc, handle_list = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
+                loss, acc,y, p_acc, handle_list, clean_acc = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
                 # print(y.max(1)[1].size())
                 train_loss += loss.item() * y_.size(0)
                 train_acc += acc * y_.size(0)
-                def clean_acc(X, y):
-                    global prompt, done_prompt
-                    X = X.cuda()
-                    y = y.cuda()
-                    # X = X[y.size(0)]
-                    if args.prompted or args.prompt_too:
-                        if args.disjoint_prompts:
-                            output = model(X, (prompt2 + prompt)/2)
-                        else:
-                            output = model(X, joint_p(prompt, done_prompt))
-                    elif args.blocked:
-                        output = model(X, prompt(X))
-                    else:
-                        output = model(X)
-                    acc = (output.max(1)[1] == y.max(1)[1]).float().mean()
-                    return acc
-                    # print(output.shape, y.shape)
+                
                 train_prompted += p_acc * y_.size(0)
-                train_clean += clean_acc(X, y).item() * y_.size(0)
+                train_clean += clean_acc * y_.size(0)
                 train_n += y_.size(0)
                 grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) + [prompt], args.grad_clip)
                 # cp = prompt.clone()
@@ -1023,19 +986,19 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 #     # path = os.path.join(args.out_dir)
                 #     # plt.savefig(args.out_dir + "/hist_epoch_"+str(epoch)+"step_"+str(step) + ".png")
                 #     # plt.clf()
-                    fg, axarr = plt.subplots(len(prompts), len(prompts) + 2)
+                    fg, axarr = plt.subplots(1,3)
                     if len(prompts) > 1:
                         for i, c in enumerate(corr_mats):
                             for j in range(len(corr_mats) + 2):
                                 axarr[i,j].matshow(c[j,:,:]/train_n)
                     else:
-                        axarr[0].matshow(corr_mats[0][0,:,:]/train_n)
+                        axarr[0].matshow(corr_mats[0]/train_n)
                         # axarr[0].axis('off')
                         axarr[0].yaxis.tick_left()
                         axarr[0].set_title('clean samples')
                         axarr[0].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_clean/train_n * 100))
                         axarr[0].set_ylabel('ground truth label')
-                        axarr[1].matshow(corr_mats[0][1,:,:]/train_n)
+                        axarr[1].matshow(corr_mats[1]/train_n)
                         # axarr[1].axis('off')
                         axarr[1].yaxis.tick_left()
                         axarr[1].set_title('perturbed samples')
@@ -1043,7 +1006,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         axarr[2].yaxis.tick_left()
                         axarr[2].set_title('untargetted attacks')
                         axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
-                        axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
+                        axarr[2].matshow(corr_mats[2]/train_n)
                         # axarr[2].axis('off')
                     plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
                 if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
@@ -1052,32 +1015,34 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         opt.param_groups[0]['lr'],
                             train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                     ))
-                if step % 5 == 0:
-                    break
+                # if (step+1) % 52 == 0:
+                #     break
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
             # for o in opts:
             #     o.param_groups[0].update(lr=lr)
-        if epoch % args.split_interval ==0 and args.method == 'splits':
-            logger.info("Adding {:d} tokens".format(args.prompt_length))
-            done_prompt = prompt if done_prompt is None else torch.cat((prompt.detach(), done_prompt.detach()), dim=1)#.requires_grad_()#joint_p(prompt, done_prompt)#.requires_grad_()
-            # done_prompt.requires_grad = True
-            prompt = make_prompt(args.prompt_length, 768)
-            # prompt.requires_grad = True
-            # opt.add_param_group({"params" : [prompt})
-            logger.info("Total length is " + str(prompt.size(1) + done_prompt.size(1)))
-            # print('sag')
-            # print(prompt[:,0,-1])
-            # for i in range(done_prompt.size(1)//10):
-            #     print(done_prompt[:,i * 10,-1])
-            opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
-            
-            # current_ind -= 20
-            # print("to {:d}, {:d}".format(last_ind, current_ind))
-        
-        # if current_ind < 0:
-        #     current_ind = 0
-        #     last_ind = 20
+        if epoch % args.split_interval ==0:
+            if args.method == 'splits':
+                logger.info("Adding {:d} tokens".format(args.prompt_length))
+                done_prompt = prompt if done_prompt is None else torch.cat((prompt.detach(), done_prompt.detach()), dim=1)#.requires_grad_()#joint_p(prompt, done_prompt)#.requires_grad_()
+                # done_prompt.requires_grad = True
+                prompt = make_prompt(args.prompt_length, 768)
+                # prompt.requires_grad = True
+                # opt.add_param_group({"params" : [prompt})
+                logger.info("Total length is " + str(prompt.size(1) + done_prompt.size(1)))
+                # print('sag')
+                # print(prompt[:,0,-1])
+                # for i in range(done_prompt.size(1)//10):
+                #     print(done_prompt[:,i * 10,-1])
+                opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
+            elif args.method == 'past_at':
+                logger.info("Buffer has {:d} samples".format(len(buff)))
+            #     logger.info("Saving prompt from {:d} epoch(s) ago.".format(args.split_interval))
+            #     past_prompts.append(prompt.detach().clone())
+            #     coeff = (len(past_prompts) + 1)
+            #     opt.param_groups[0].update(lr=lr_schedule(epoch_now) * coeff)
+            #     logger.info("Bumping lr to {:f}.".format(lr_schedule(epoch_now) * coeff))
+
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
         if args.test:
             with open(os.path.join(args.out_dir, 'test_PGD20.txt'),'a') as new:
@@ -1107,7 +1072,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
 train_adv(args, model, train_loader, test_loader, logger)
 
-# args.eval_iters = 20
+args.eval_iters = 10
+args.alpha = 2
 logger.info(args.out_dir)
 print(args.out_dir)
 # evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
@@ -1115,14 +1081,15 @@ print(args.out_dir)
 # # cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt)
 # # logger.info('cw20 : loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
 # print("sag")
-mats, accs = evaluate_splits(args, model, test_loader, prompt=prompt[:,20:,:])
-fg, axarr = plt.subplots(len(mats), len(mats))
+mats, accs = evaluate_splits(args, logger, model, test_loader, prompt=prompt[:,args.prompt_length:,:], steps=30)
+fg, axarr = plt.subplots(len(mats), len(mats[0]))
 
 for i in range(len(mats)):
-    for j in range(len(mats)):
+    for j in range(len(mats[0])):
         axarr[i,j].matshow(mats[i][j])
-        axarr[i,j].set_ylabel("{:.2f}".format(accs[i, j]))
-plt.savefig(args.out_dir + "/mat_of_splits_len{}.png".format(str(prompt.size(1) - 20)))
+        # axarr[i,j].set_ylabel("{:.2f}".format(accs[i, j]))
+        axarr[i,j].axis('off')
+plt.savefig(args.out_dir + "/mat_of_splits_len{}.png".format(str(prompt.size(1) - args.prompt_length)))
 logger.info('Saved mat to outdir')
 
 args.eval_iters = 1

@@ -3,7 +3,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='vit_base_patch16_224')
     parser.add_argument('--method', type=str, default='AT',
-                        choices=['AT', 'TRADES', 'MART', 'natural', 'ws', 'voting', 'PAT_tar', 'splits'])
+                        choices=['AT', 'TRADES', 'MART', 'natural', 'ws', 'voting', 'past_at', 'splits'])
     parser.add_argument('--dataset', type=str, default="cifar")
     parser.add_argument('--run-dummy', action='store_true')
     parser.add_argument('--accum-steps', type=int, default=1)
@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument("--just-eval", action='store_true')
     parser.add_argument('--eval-restarts', type=int, default=1)
     parser.add_argument('--eval-iters', type=int, default=10)
+    parser.add_argument('--buffer-size', type=int, default=640)
     parser.add_argument('--data-dir', default='./data', type=str)
     parser.add_argument('--epochs', default=40, type=int)
     parser.add_argument('--split-interval', default=2, type=int)
