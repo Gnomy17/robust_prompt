@@ -133,9 +133,7 @@ if args.prompted or args.prompt_too or args.method in ['past_at', 'splits']:
     # prompt.cuda()
     if args.method == 'splits':
         done_prompt = None
-    if args.method == 'past_at':
-        past_prompts = []
-        buff = Buffer(args.buffer_size, 'cuda')
+    
     if args.load:
         if args.method == 'splits':
             if args.just_eval:
@@ -147,6 +145,9 @@ if args.prompted or args.prompt_too or args.method in ['past_at', 'splits']:
             prompt = (checkpoint['prompt'])[0]
     else:
         prompt = make_prompt(args.prompt_length, 768)
+    if args.method == 'past_at':
+        past_prompt = prompt.clone()
+        buff = Buffer(args.buffer_size, mode = args.buffer_type,device='cuda')
     prompts = [prompt]
     params = [prompt]
     # params = {'prompt': prompt}
@@ -671,7 +672,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc = 0
                 loss = 0
                 losses = 0
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=past_prompt).detach()
                 X_adv = X + delta
                 y_adv = y
                 if not buff.is_empty():
@@ -697,15 +698,17 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 
                 model.zero_grad()
                 loss.backward()
-                buff.add_data(examples=X_adv.detach(),
+                d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                buff.add_data(examples=(X_adv).detach(),
                              labels=y_adv.detach())
-                outu = model(X_adv, prompt).detach()
+                
+                outu = model(X + d, prompt).detach()
                 outc = model(X, prompt).detach()
                 acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
                     corr_mats[1][y.max(1)[1][j], output.detach().max(1)[1][j]] += 1
                     corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                    corr_mats[0][y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
+                    corr_mats[2][y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
                 # for j in range(y.size(0), y_adv.size(0)):
                 #     corr_mats[2][y_adv.max(1)[1][j], output.detach().max(1)[1][j]]
                 acc_a = (output.max(1)[1] == y_train.max(1)[1]).float().mean().item() 
@@ -1040,8 +1043,11 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 #     print(done_prompt[:,i * 10,-1])
                 opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
             elif args.method == 'past_at':
-                logger.info("Buffer has {:d} samples, emptying buffer.".format(len(buff)))
-                buff.empty()
+                # logger.info("Buffer has {:d} samples, emptying buffer.".format(len(buff)))
+                # buff.empty()
+                past_prompt.data = prompt.clone().detach().data
+                logger.info("Incrementing buffer.")
+                buff.increment()
             #     logger.info("Saving prompt from {:d} epoch(s) ago.".format(args.split_interval))
             #     past_prompts.append(prompt.detach().clone())
             #     coeff = (len(past_prompts) + 1)
