@@ -479,7 +479,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.prompted or args.prompt_too:
                     if args.full_white:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                        td = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=y).detach()
+                        # td = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=y).detach()
                         # prev_prompt.set_prompt(prompt)
                     elif args.all_classes:
                         i = torch.randint(low=1, high=y.size(1), size=y.max(1)[1].size()).cuda()
@@ -491,10 +491,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None).detach()
                     X.detach()
-                    outa = model(X + delta, prompt)
-                    outt = model(X + td, prompt)
-                    output = (outa + outt).detach()/2
-                    loss = criterion(outa, y) + criterion(outt, y)
+                    output = model(X + delta, prompt)
+                    # outt = model(X + td, prompt)
+                    # output = (outa + outt).detach()/2
+                    loss = criterion(output, y) #+ criterion(outt, y)
+                    loss.backward()
+                    acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
+                    return loss, acc, y, acc, handle_list, acc
                     # if not args.all_classes:
                     #     X_adv = X + delta
                     #     if args.disjoint_prompts:
@@ -678,8 +681,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 else:
                     X_train = X_adv
                     y_train = y
-                X_train = torch.cat((X_train, X))
-                y_train = torch.cat((y_train, y))
+                # X_train = torch.cat((X_train, X))
+                # y_train = torch.cat((y_train, y))
                 output = model(X_train, prompt)
                 loss = criterion(output, y_train)
                 # deltas = []
@@ -1009,13 +1012,14 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         axarr[2].matshow(corr_mats[2]/train_n)
                         # axarr[2].axis('off')
                     plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
+                    plt.close()
                 if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                     logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
                         epoch, step + 1, len(train_loader),
                         opt.param_groups[0]['lr'],
                             train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                     ))
-                # if (step+1) % 52 == 0:
+                # if (step+1) % 5 == 0:
                 #     break
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
@@ -1036,7 +1040,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 #     print(done_prompt[:,i * 10,-1])
                 opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
             elif args.method == 'past_at':
-                logger.info("Buffer has {:d} samples".format(len(buff)))
+                logger.info("Buffer has {:d} samples, emptying buffer.".format(len(buff)))
+                buff.empty()
             #     logger.info("Saving prompt from {:d} epoch(s) ago.".format(args.split_interval))
             #     past_prompts.append(prompt.detach().clone())
             #     coeff = (len(past_prompts) + 1)
