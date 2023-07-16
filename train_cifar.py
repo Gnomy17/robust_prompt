@@ -480,7 +480,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.prompted or args.prompt_too:
                     if args.full_white:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                        td = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=y).detach()
+                        # td = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, target=y).detach()
                         # prev_prompt.set_prompt(prompt)
                     elif args.all_classes:
                         i = torch.randint(low=1, high=y.size(1), size=y.max(1)[1].size()).cuda()
@@ -492,10 +492,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None).detach()
                     X.detach()
-                    outa = model(X + delta, prompt)
-                    outt = model(X + td, prompt)
-                    output = (outa + outt).detach()/2
-                    loss = criterion(outa, y) + criterion(outt, y)
+                    output = model(X + delta, prompt)
+                    # outt = model(X + td, prompt)
+                    # output = (outa + outt).detach()/2
+                    loss = criterion(output, y) #+ criterion(outt, y)
+                    loss.backward()
+                    acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
+                    return loss, acc, y, acc, handle_list, acc
                     # if not args.all_classes:
                     #     X_adv = X + delta
                     #     if args.disjoint_prompts:
