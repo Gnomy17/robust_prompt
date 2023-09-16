@@ -172,7 +172,6 @@ class Attention(nn.Module):
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
-
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -353,6 +352,9 @@ class VisionTransformer(nn.Module):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
+    def get_embedding(self, x):
+        return self.patch_embed(x)
+        
     def forward_features(self, x, prompt=None, deep=False):
         B = x.shape[0]
         if x.shape[-1] != self.embed_dim:
@@ -365,9 +367,10 @@ class VisionTransformer(nn.Module):
         ind = 0
         if (prompt is not None) and (not deep):
             ind += prompt.size(1)
+            # print(prompt.size())
             if prompt.size(0) == 1:
                 batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
-                x = torch.cat((batched_prompt, x), dim=1)     
+                x = torch.cat((batched_prompt, x), dim=1)  
             else:
                 x = torch.cat((prompt, x), dim=1)
         for i, blk in enumerate(self.blocks):
@@ -376,7 +379,8 @@ class VisionTransformer(nn.Module):
                 batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
                 x = torch.cat((batched_prompt, x), dim=1)
             x = blk(x)
-        x_cls = self.norm(x)[:, ind]
+        x = self.norm(x)
+        x_cls = x[:, ind]
         x_cls = self.pre_logits(x_cls)
         return x_cls, x
 

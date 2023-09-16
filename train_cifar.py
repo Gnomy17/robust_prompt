@@ -64,13 +64,14 @@ mean3 = 0
 count = 0
 
 train_loader, test_loader= get_loaders(args)
+nclasses = 11 if args.method == 'detect' else 10
 if args.model == "vit_base_patch16_224":
     from model_for_cifar.vit import vit_base_patch16_224
-    model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 elif args.model == "vit_small_robust_cifar":
     from model_for_cifar.vit import vit_small_patch16_224
-    model = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
     chkpnt = torch.load(r'./finetuned_model/robust_cifar_vit')
     model.load_state_dict(chkpnt['state_dict'])
@@ -79,36 +80,36 @@ elif args.model == 'vit_finetuned_cifar':
     #### TODO ####
     chkpnt = torch.load(r'./finetuned_model/finetuned_vit')
     from model_for_cifar.vit import vit_base_patch16_224
-    model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = vit_base_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
     model.load_state_dict(chkpnt['state_dict'])
 elif args.model == "vit_base_patch16_224_in21k":
     from model_for_cifar.vit import vit_base_patch16_224_in21k
-    model = vit_base_patch16_224_in21k(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = vit_base_patch16_224_in21k(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 elif args.model == "vit_small_patch16_224":
     from model_for_cifar.vit import  vit_small_patch16_224
-    model = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 elif args.model == "deit_small_patch16_224":
     from model_for_cifar.deit import  deit_small_patch16_224
-    model = deit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10, patch_size=args.patch, args=args).cuda()
+    model = deit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses, patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 elif args.model == "deit_tiny_patch16_224":
     from model_for_cifar.deit import  deit_tiny_patch16_224
-    model = deit_tiny_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = deit_tiny_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 elif args.model == "convit_base":
     from model_for_cifar.convit import convit_base
-    model = convit_base(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = convit_base(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 elif args.model == "convit_small":
     from model_for_cifar.convit import convit_small
-    model = convit_small(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch,args=args).cuda()
+    model = convit_small(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch,args=args).cuda()
     model = nn.DataParallel(model)
 elif args.model == "convit_tiny":
     from model_for_cifar.convit import convit_tiny
-    model = convit_tiny(pretrained = (not args.scratch),img_size=crop_size,num_classes =10,patch_size=args.patch, args=args).cuda()
+    model = convit_tiny(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 else:
     raise ValueError("Model doesn't exist！")
@@ -122,7 +123,7 @@ if args.load:
     model.load_state_dict(checkpoint['state_dict'])
 
 
-if args.prompted or args.prompt_too or args.method in ['past_at', 'splits']:
+if args.prompted or args.prompt_too or args.method in ['past_at', 'splits', 'updown']:
     # from model_for_cifar.prompt import Prompt
     # prompt = Prompt(args.prompt_length, 768)
     
@@ -156,15 +157,15 @@ if args.prompted or args.prompt_too or args.method in ['past_at', 'splits']:
     if args.disjoint_prompts:
         prompt2 = make_prompt(args.prompt_length, 768)
         params.append(prompt2)
-    if args.method == 'PAT_tar':
-        dim = 768
-        pred_dim = 512
-        predictor = nn.Sequential(nn.Linear(dim, pred_dim, bias=False),
-                                    nn.BatchNorm1d(pred_dim),
-                                    nn.ReLU(inplace=True), # hidden layer
-                                    nn.Linear(pred_dim, dim))
-        predictor.cuda()
-        params += list(predictor.parameters())
+    # if args.method == 'PAT_tar':
+    #     dim = 768
+    #     pred_dim = 512
+    #     predictor = nn.Sequential(nn.Linear(dim, pred_dim, bias=False),
+    #                                 nn.BatchNorm1d(pred_dim),
+    #                                 nn.ReLU(inplace=True), # hidden layer
+    #                                 nn.Linear(pred_dim, dim))
+    #     predictor.cuda()
+    #     params += list(predictor.parameters())
     if args.prompt_too:
         for p in model.parameters():
             params.append(p)
@@ -176,6 +177,14 @@ if args.prompted or args.prompt_too or args.method in ['past_at', 'splits']:
         opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
     elif args.optim == 'adam':
         opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
+    if args.method == 'updown':
+        pup = prompt
+        optup = opt
+        pdown = make_prompt(args.prompt_length, 768)
+        dparams = [pdown]
+        # for p in model.module.head.parameters():
+        #     dparams.append(p)
+        optdown = torch.optim.SGD(dparams, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 elif args.method in ['voting']:
     prompts = []
     head_params = []
@@ -210,6 +219,9 @@ elif args.blocked:
         params.append(p) 
     opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
 else:
+    model_copy = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
+    model_copy = nn.DataParallel(model_copy)
+    # print(model_copy == model, model == model)
     if args.optim == 'sgd':
         opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
     elif args.optim == 'adam':
@@ -424,7 +436,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
         train_n = 0
         hist_c = torch.zeros((10)).cuda()
         hist_a = torch.zeros((10)).cuda()
-        corr_mats = [torch.zeros((10,10)) for _ in (range(3))]
+        corr_mats = [torch.zeros((nclasses,nclasses)) for _ in (range(4))]
+        fvs = []
+        fvs_a = []
+        pfvs = []
+        pfvs_a = []
+        flabels = []
         # p10 = prompt.detach().clone()
         # p10.requires_grad = False
 
@@ -490,30 +507,47 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         output = model(X + delta, prompt)
                         loss = criterion(output, y)
                     else:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt2 if args.disjoint_prompts else None).detach()
+                        # labs = torch.ones_like(y.max(1)[1]) * 5 # (y.max(1)[1] + 1)% 10 #
+                        # labs = F.one_hot(labs, 10).float()
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach() #prompt=prompt, avoid=labs).detach()
+                        t = F.one_hot((y.max(1)[1] + 1) % 10, 10).float()
+                        d2 =  pgd_attack(model, X, t, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                        # d2 = d2[torch.randperm(d2.size()[0])]
+                        # out2, fw = model(X + d2, prompt, get_fs=True)
+                        # out2 = out2.detach()
+                        # fw = fw.detach()
                     X.detach()
-                    output = model(X + delta, prompt)
-                    # outt = model(X + td, prompt)
+                    out = model(X + delta, prompt)#, get_fs=True)
+                    outc = model(X, prompt)
+                    # fb = fb.detach()
+                    out2 = model(X + d2, prompt)
                     # output = (outa + outt).detach()/2
-                    loss = criterion(output, y) #+ criterion(outt, y)
+                    # outc, fc = model(X, prompt, get_fs=True)
+                    loss = criterion(out, y) #+ criterion(outc, y) #+ criterion(outt, y)
                     loss.backward()
-                    acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
-                    return loss, acc, y, acc, handle_list, acc
-                    # if not args.all_classes:
-                    #     X_adv = X + delta
-                    #     if args.disjoint_prompts:
-                    #         output = model(X_adv, prompt)
-                    #     else: 
-                    #         output = model(X_adv, prompt)
-                    #     loss = CW_loss(output, y) if args.cw else criterion(output, y)
-                    #     if args.disjoint_prompts:
-                    #         loss += F.mse_loss(output, model(X+delta, prompt2))
-                    # if args.mix_lam > 0:
-                    #     out = model(X, prompt)
-                    #     loss += (args.mix_lam * criterion(out, y))
-                    #     loss /= (1 + args.mix_lam)
-                elif args.blocked:
-                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                    
+                    # diff = fw[:, args.prompt_length, :] - fc[:, args.prompt_length, :]
+                    # diff_n = torch.norm(diff, dim=1).unsqueeze(1).expand(y.size(0), 10)
+                    # W = model.module.head.weight.detach()
+                    # W_n = torch.norm(W, dim=1).expand(y.size(0), 10)
+                    # # print(diff_n.size(), W_n.size())
+                    # thingy = (model.module.head(diff)/(W_n * diff_n)).detach()
+                    # cosim = nn.CosineSimilarity()
+                    acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
+                    acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()#cosim(fw[:, args.prompt_length, :], fb[:, args.prompt_length, :]).detach().mean().item()
+                    acc2 = (out2.max(1)[1] == t.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
+                    for j in range(y.size(0)):
+                        corr_mats[1][y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
+                        corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
+                        corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
+                    return loss, acc, y, acc2, handle_list, acc_c
+                    
+                elif args.method == 'detect':
+                    a_label = (nclasses - 1) * torch.ones_like(y.max(1)[1])
+                    a_label = F.one_hot(a_label, nclasses).float()
+                    y = torch.cat((y, torch.zeros_like(y.max(1)[1])), dim=1)
+                    print(y.size(), a_label.size())
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=a_label).detach()
                     X_adv = X + delta
                     output = model(X_adv, prompt(X_adv))
                     loss = criterion(output, y)
@@ -522,10 +556,24 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         loss += (args.mix_lam * criterion(out, y))
                         loss /= (1 + args.mix_lam)
                 else:
-                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                    delta = pgd_attack(model_copy, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
                     output = model(X_adv)
                     loss = criterion(output, y)
+                    loss.backward()
+                    labs = (y.max(1)[1] + 1)% 10 #
+                    labs = F.one_hot(labs, 10).float() 
+                    d2 = pgd_attack(model_copy, X, labs, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                    out2 = model(X + d2).detach()
+                    outc = model(X).detach()
+                    acc2 = (out2.max(1)[1] == labs.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
+                    acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
+                    acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()#cosim(fw[:, args.prompt_length, :], fb[:, args.prompt_length, :]).detach().mean().item()
+                    for j in range(y.size(0)):
+                        corr_mats[1][y.max(1)[1][j], output.detach().max(1)[1][j]] += 1
+                        corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
+                        corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
+                    return loss, acc, y, acc2, handle_list, acc_c
                 # output = model(X, prompt)
             elif args.method == 'voting':
                 X = X.cuda()
@@ -656,63 +704,119 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
                 if args.prompted or args.prompt_too:
-                    output = model(X, prompt)
+                    output, pfv = model(X, prompt, get_fs=True)
                 elif args.blocked:
                     output = model(X, prompt(X))
                 else:
                     output = model(X)
                 # print(output.shape, y.shape)
                 loss = criterion(output, y)
-            elif args.method == 'past_at':
+                loss.backward()
+                acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
+                # if step >= 770:
+                #     ls = y.max(1)[1].detach()
+                #     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                #     output, pfv_a = model(X + delta, prompt, get_fs=True)
+                #     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=None).detach()
+                #     _, fv_a = model(X + delta, get_fs=True)
+                #     _, fv = model(X, get_fs=True)
+                #     fvs_a.append(fv_a[ls % 5 == 0, args.prompt_length, :].detach())
+                #     fvs.append(fv[ls % 5 == 0, args.prompt_length, :].detach())
+                #     pfvs_a.append(pfv_a[ls % 5 == 0, args.prompt_length, :].detach()) 
+                #     pfvs.append(pfv[ls % 5 == 0 , args.prompt_length, :].detach()) 
+                    
+                #     flabels.append(ls[ls % 5 == 0])
+                #     # print('sag')
+                return loss, acc, y, acc, handle_list, acc
+            elif args.method == 'updown':
                 X = X.cuda()
                 y = y.cuda()
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
-                # ds = []
-                acc = 0
-                loss = 0
-                losses = 0
-                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=past_prompt).detach()
+                # outc, fc = model(X, get_fs=True)
+                # outc = outc.detach()
+                c_y = torch.ones(y.size(0)).long() * 5 
+                c_y = F.one_hot(c_y, 10).float().cuda()
+                dup = pgd_attack(model, X, c_y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=pup).detach()
+                ddown = pgd_attack(model, X, None, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=pdown, target=c_y).detach()
+                outup, fdu = model(X + dup, pup, get_fs=True)
+                loss = criterion(outup, y)
+                optup.zero_grad()
+                loss.backward()
+                optup.step()
+                optup.zero_grad()
+                model.zero_grad()
+                outdown, fud = model(X + ddown, pdown, get_fs=True)
+                loss = criterion(outdown, y)
+                optdown.zero_grad()
+                loss.backward()
+                optdown.step()
+                optdown.zero_grad()
+                model.zero_grad()
+                # out_u, fuu = model(X + dup, pup, get_fs=True)
+                out_uc, fuc = model(X, pup, get_fs=True)
+                # out_d, fdd = model(X + ddown, pdown, get_fs=True)
+                out_dc, fdc = model(X, pdown, get_fs=True)
+                # out_dc = out_dc.detach()
+                # out_uc = out_uc.detach()
+                # out_u = out_u.detach()
+                # out_d = out_d.detach()
+                cosim = nn.CosineSimilarity()
+                w_5 = model.module.head.weight.detach()[5, :]
+
+                # diffu = fdu[:,args.prompt_length, :] - fdc[:,args.prompt_length,:]
+                # print(torch.norm(fud[:, args.prompt_length, :], dim=1).size())
+                # predu = model.module.head(fuu[:, args.prompt_length, :]/torch.norm(fuu[:, args.prompt_length, :], dim=1).unsqueeze(1) 
+                #     + fud[:, args.prompt_length, :]/torch.norm(fud[:, args.prompt_length, :], dim=1).unsqueeze(1)).detach()
+                # predd = model.module.head(fdd[:, args.prompt_length, :]/torch.norm(fdd[:, args.prompt_length, :], dim=1).unsqueeze(1)
+                #      + fdu[:, args.prompt_length, :]/torch.norm(fdu[:, args.prompt_length, :], dim=1).unsqueeze(1)).detach()
+                # print(predu.size())
+                
+                # print(model.module.head(fuu[:, args.prompt_length, :]).size())
+                # print(torch.norm(model.module.head(fuu[:, args.prompt_length, :]).detach() - out_u))
+                # print(fc.size())
+                # acc_c = (outc.detach().max(1)[1] == y.max(1)[1]).float().mean()
+                acc_c = (outup.max(1)[1] == y.max(1)[1]).float().mean().item() +  (outdown.max(1)[1] == y.max(1)[1]).float().mean().item()
+                # out_ud = model(X, torch.cat((pup, pdown), dim=1)).detach()
+                for j in range(X.size(0)):
+                    corr_mats[0][y.max(1)[1][j], outup.detach().max(1)[1][j]] += 1
+                    corr_mats[1][y.max(1)[1][j], outdown.detach().max(1)[1][j]] += 1
+                    corr_mats[2][y.max(1)[1][j], out_uc.detach().max(1)[1][j]] += 1
+                    corr_mats[3][y.max(1)[1][j], out_dc.detach().max(1)[1][j]] += 1
+                acc = cosim(w_5, fuc[:, args.prompt_length, :]).detach().mean().item()
+                acc2 = cosim(w_5, fdc[:, args.prompt_length, :]).detach().mean().item()
+                 # acc_c = (out_ud.max(1)[1] == outc.max(1)[1]).float().mean()
+                return loss, acc, y, acc2, handle_list, acc_c
+            elif args.method == 'detect':
+                X = X.cuda()
+                y = y.cuda()
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                a_label = (nclasses - 1) * torch.ones_like(y.max(1)[1])
+                a_label = F.one_hot(a_label, nclasses).float()
+                y = torch.cat((y, torch.zeros(y.size(0), 1).cuda()), dim=1)
+                # print(y[:,10], a_label[:, 10])
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                 X_adv = X + delta
-                y_adv = y
-                if not buff.is_empty():
-                    buf_inputs, buf_labels = buff.get_data(X.size(0))
-                    X_train = torch.cat((X_adv, buf_inputs))
-                    y_train = torch.cat((y_adv, buf_labels))
-                else:
-                    X_train = X_adv
-                    y_train = y
-                # X_train = torch.cat((X_train, X))
-                # y_train = torch.cat((y_train, y))
-                output = model(X_train, prompt)
-                loss = criterion(output, y_train)
-                # deltas = []
-                # for p in past_prompts:
-                #     d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=p).detach()
-                #     deltas.append(d)
-                
-                # for d in deltas:
-                #     X_adv = torch.cat([X_adv, X+d], dim=0)
-                #     y_adv = torch.cat([y_adv, y], dim=0)
-                # output = model(X_adv, prompt)
-                
+                outa = model(X_adv, prompt)
+                outc = model(X, prompt)
+                loss = 0.1 * criterion(outa, a_label) + criterion(outc, y)
+
                 model.zero_grad()
                 loss.backward()
-                d = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
-                buff.add_data(examples=(X_adv).detach(),
-                             labels=y_adv.detach())
                 
-                outu = model(X + d, prompt).detach()
-                outc = model(X, prompt).detach()
+                d_a = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=a_label).detach()
+                outad = model(X + d_a, prompt).detach()
                 acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
-                    corr_mats[1][y.max(1)[1][j], output.detach().max(1)[1][j]] += 1
+                    corr_mats[1][y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
                     corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                    corr_mats[2][y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
+                    corr_mats[2][y.max(1)[1][j], outad.detach().max(1)[1][j]] += 1
+                    # corr_mats[2][y.max(1)[1][j], outu.detach().max(1)[1][j]] += 1
                 # for j in range(y.size(0), y_adv.size(0)):
                 #     corr_mats[2][y_adv.max(1)[1][j], output.detach().max(1)[1][j]]
-                acc_a = (output.max(1)[1] == y_train.max(1)[1]).float().mean().item() 
-                acc = (outu.max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc_a = (outa.max(1)[1] == a_label.max(1)[1]).float().mean().item() 
+                acc = (outad.max(1)[1] == y.max(1)[1]).float().mean().item() + (outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()
                 return loss, acc, y, acc_a, handle_list, acc_c
             elif args.method == 'splits':
                 
@@ -775,22 +879,33 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             c * args.patch:(c + 1) * args.patch] = 0
                     if args.PRM:
                         delta = delta * add_noise_mask
-                    loss_kl = criterion_kl(F.log_softmax(model(X+delta), dim=1),
-                                           F.softmax(model(X), dim=1))
+                    loss_kl = criterion_kl(F.log_softmax(model(X + delta, prompt) if args.prompted else model(X + delta), dim=1),
+                                           F.softmax(model(X, prompt) if args.prompted else model(X), dim=1))
                     grad = torch.autograd.grad(loss_kl, [delta])[0]
-
+                    # prompt = prompt.detach()
                     delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
                     delta.data = clamp(delta, lower_limit - X, upper_limit - X)
                 if len(handle_list) != 0:
                     for handle in handle_list:
                         handle.remove()
-                model.train()
-                x_adv = Variable(X+delta, requires_grad=False)
-                output = logits = model(X)
+                # model.train()
+                delta = delta.detach()
+                # x_adv = Variable(X+delta, requires_grad=False)
+                output = logits = model(X, prompt) if args.prompted else model(X)
+                output = output.detach()
+                # logits = logits.detach()
+                acc_c = (output.max(1)[1] == y).float().mean().item()
                 loss_natural = F.cross_entropy(logits, y)
-                loss_robust = (1.0 / batch_size) * criterion_kl(F.log_softmax(model(x_adv), dim=1),
-                                                                F.softmax(model(X), dim=1))
+                loss_robust = (1.0 / batch_size) * criterion_kl(F.log_softmax(model(X+delta, prompt) if args.prompted else model(X+delta), dim=1),
+                                                                F.softmax(model(X, prompt) if args.prompted else model(X), dim=1))
                 loss = loss_natural + beta * loss_robust
+                dpgd = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt if args.prompted else None).detach()
+                outa = model(X + dpgd, prompt).detach() if args.prompted else model(X + dpgd).detach()
+                acc_a = (outa.detach().max(1)[1] == y).float().mean().item()
+                # print('sag')
+                # y = y.detach()
+                # X = X.detach()
+                return loss, acc_c, y, acc_a, handle_list, acc_c
             elif args.method == 'MART':
                 X = X.cuda()
                 y = y.cuda()
@@ -841,6 +956,30 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 loss_robust = (1.0 / batch_size) * torch.sum(
                     torch.sum(kl(torch.log(adv_probs + 1e-12), nat_probs), dim=1) * (1.0000001 - true_probs))
                 loss = loss_adv + float(beta) * loss_robust
+            elif args.method == 'ss':
+                X = X.cuda()
+                y = y.cuda()
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=None).detach()
+                d2 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                outa, fa = model(X + delta, prompt, get_fs=True)
+                outc, fc = model(X, prompt, get_fs=True)
+                outad = model(X+d2, prompt).detach()
+                diff = fa[:, args.prompt_length, :] - fc[:, args.prompt_length, :].detach()
+                loss_c = criterion(outc, y)
+                loss_a = (diff**2).sum(1).mean() 
+                coeff = .5 #loss_c.item() / loss_a.item() * .5
+                loss = (loss_c + coeff * loss_a)
+                loss.backward()
+
+                acc = (outa.max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
+                for j in range(y.size(0)):
+                    corr_mats[1][y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
+                    corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
+                    corr_mats[2][y.max(1)[1][j], outad.detach().max(1)[1][j]] += 1
+                return loss_c, acc, y, loss_a, handle_list, acc_c
             else:
                 raise ValueError(args.method)
             opt.zero_grad()
@@ -935,13 +1074,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         axarr[1].matshow(corr_mats[0][1,:,:]/train_n)
                         # axarr[1].axis('off')
                         axarr[1].yaxis.tick_left()
-                        axarr[1].set_title('perturbed samples')
-                        axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
+                        axarr[1].set_title('perturbed loss(y)')
+                        axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
                         axarr[2].yaxis.tick_left()
-                        axarr[2].set_title('untargetted attacks')
-                        axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
+                        axarr[2].set_title('perturbed loss(y + 1)')
+                        axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
                         axarr[2].matshow(corr_mats[0][2,:,:]/train_n)
-                    plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png")
+                    plt.savefig(args.out_dir + "/mat_present_"+str(epoch)+"step_" + str(step) + ".png")
                     plt.close()
             else:
                 # if args.method == 'ws' and args.ws == epoch:
@@ -954,7 +1093,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 train_prompted += p_acc * y_.size(0)
                 train_clean += clean_acc * y_.size(0)
                 train_n += y_.size(0)
-                grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) + [prompt], args.grad_clip)
+                grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) , args.grad_clip)#+ [prompt]
                 # cp = prompt.clone()
                 opt.step()
                 # print(prompt - cp)
@@ -983,7 +1122,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     opt.step()
                     opt.zero_grad()
                     model.zero_grad()
-                if (step+1) % 50 == 0:
+                if (step+1) % 50 == 0 and args.method != 'natural':
                 #     # fg, axarr = plt.subplots(2,1)
                 #     # axarr[0].bar(range(10), hist_c.cpu().numpy())
                 #     # axarr[0].set_title("True labels")
@@ -992,8 +1131,28 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 #     # path = os.path.join(args.out_dir)
                 #     # plt.savefig(args.out_dir + "/hist_epoch_"+str(epoch)+"step_"+str(step) + ".png")
                 #     # plt.clf()
-                    fg, axarr = plt.subplots(1,3)
-                    if len(prompts) > 1:
+                    fg, axarr = plt.subplots(1,4)
+                    if args.method == 'updown':
+                        axarr[0].matshow(corr_mats[0]/train_n)
+                        # axarr[0].axis('off')
+                        axarr[0].yaxis.tick_left()
+                        axarr[0].set_title('clean frozen')
+                        # axarr[0].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_clean/train_n * 100))
+                        axarr[0].set_ylabel('ground truth label')
+                        axarr[1].matshow(corr_mats[1]/train_n)
+                        # axarr[1].axis('off')
+                        axarr[1].yaxis.tick_left()
+                        axarr[1].set_title('clean combined')
+                        axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_clean/train_n * 100))
+                        axarr[2].yaxis.tick_left()
+                        axarr[2].set_title('up')
+                        axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
+                        axarr[2].matshow(corr_mats[2]/train_n)
+                        axarr[3].yaxis.tick_left()
+                        axarr[3].set_title('down')
+                        axarr[3].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
+                        axarr[3].matshow(corr_mats[3]/train_n)
+                    elif len(prompts) > 1:
                         for i, c in enumerate(corr_mats):
                             for j in range(len(corr_mats) + 2):
                                 axarr[i,j].matshow(c[j,:,:]/train_n)
@@ -1007,14 +1166,14 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         axarr[1].matshow(corr_mats[1]/train_n)
                         # axarr[1].axis('off')
                         axarr[1].yaxis.tick_left()
-                        axarr[1].set_title('perturbed samples')
-                        axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
+                        axarr[1].set_title('perturbed loss(y)')
+                        axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
                         axarr[2].yaxis.tick_left()
-                        axarr[2].set_title('untargetted attacks')
-                        axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
+                        axarr[2].set_title('perturbed loss(y + 1)')
+                        axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
                         axarr[2].matshow(corr_mats[2]/train_n)
                         # axarr[2].axis('off')
-                    plt.savefig(args.out_dir + "/mat_epoch_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
+                    plt.savefig(args.out_dir + "/mat_present_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
                     plt.close()
                 if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                     logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
@@ -1022,7 +1181,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         opt.param_groups[0]['lr'],
                             train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
                     ))
-                # if (step+1) % 5 == 0:
+                # if (step+1) % 3 == 0:
                 #     break
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
@@ -1042,18 +1201,46 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # for i in range(done_prompt.size(1)//10):
                 #     print(done_prompt[:,i * 10,-1])
                 opt = torch.optim.SGD([prompt] + list(model.module.head.parameters()), lr=lr_schedule(epoch_now), momentum=args.momentum, weight_decay=args.weight_decay) 
-            elif args.method == 'past_at':
+            # elif args.method == 'past_at':
                 # logger.info("Buffer has {:d} samples, emptying buffer.".format(len(buff)))
                 # buff.empty()
-                past_prompt.data = prompt.clone().detach().data
-                logger.info("Incrementing buffer.")
-                buff.increment()
+
+                # past_prompt.data = prompt.clone().detach().data
+                # logger.info("Incrementing buffer.")
+                # buff.increment()
             #     logger.info("Saving prompt from {:d} epoch(s) ago.".format(args.split_interval))
             #     past_prompts.append(prompt.detach().clone())
             #     coeff = (len(past_prompts) + 1)
             #     opt.param_groups[0].update(lr=lr_schedule(epoch_now) * coeff)
             #     logger.info("Bumping lr to {:f}.".format(lr_schedule(epoch_now) * coeff))
+        # if args.method == 'natural':
+        #     # print('sag')
+        #     fig, axarr = plt.subplots(2,2, figsize=(10,10))
+        #     from sklearn.decomposition import PCA
+        #     pca = PCA(n_components=2)
+        #     ls = torch.cat(flabels, dim=0).cpu().numpy()
 
+        #     fvs = torch.cat(fvs, dim=0).cpu().numpy()
+        #     pca.fit(fvs)
+        #     fv_new = pca.transform(fvs)
+        #     axarr[0, 0].scatter(fv_new[:, 0], fv_new[:, 1], c=ls)
+        #     axarr[0,0].set_title('features')
+        #     fvs_a = torch.cat(fvs_a, dim=0).cpu().numpy()
+        #     fva_new = pca.transform(fvs_a)
+        #     axarr[0, 1].scatter(fva_new[:, 0], fva_new[:, 1], c=ls)
+        #     axarr[0,1].set_title('features adv')
+        #     pfvs = torch.cat(pfvs, dim=0).cpu().numpy()
+        #     pca.fit(pfvs)
+        #     pfv_new = pca.transform(pfvs)
+        #     axarr[1,0].set_title('p features')
+        #     axarr[1, 0].scatter(pfv_new[:, 0], pfv_new[:, 1], c=ls)
+        #     pfvs_a = torch.cat(pfvs_a, dim=0).cpu().numpy()
+        #     pfva_new = pca.transform(pfvs_a)
+        #     axarr[1, 1].scatter(pfva_new[:, 0], pfva_new[:, 1], c=ls)
+        #     axarr[1,1].set_title('p features adv')
+        #     plt.savefig(args.out_dir + "/feature_vectors.png", dpi=500)
+            # print(pfv_new.shape)
+            # print('sag')
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
         if args.test:
             with open(os.path.join(args.out_dir, 'test_PGD20.txt'),'a') as new:

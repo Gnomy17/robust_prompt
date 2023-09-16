@@ -3,7 +3,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='vit_base_patch16_224')
     parser.add_argument('--method', type=str, default='AT',
-                        choices=['AT', 'TRADES', 'MART', 'natural', 'ws', 'voting', 'past_at', 'splits'])
+                        choices=['AT', 'TRADES', 'MART', 'natural', 'ss', 'voting', 'detect', 'splits', 'updown'])
     parser.add_argument('--dataset', type=str, default="cifar")
     parser.add_argument('--run-dummy', action='store_true')
     parser.add_argument('--accum-steps', type=int, default=1)
