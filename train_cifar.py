@@ -899,9 +899,16 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 loss_robust = (1.0 / batch_size) * criterion_kl(F.log_softmax(model(X+delta, prompt) if args.prompted else model(X+delta), dim=1),
                                                                 F.softmax(model(X, prompt) if args.prompted else model(X), dim=1))
                 loss = loss_natural + beta * loss_robust
+                model.zero_grad()
+                loss.backward()
+
                 dpgd = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt if args.prompted else None).detach()
                 outa = model(X + dpgd, prompt).detach() if args.prompted else model(X + dpgd).detach()
                 acc_a = (outa.detach().max(1)[1] == y).float().mean().item()
+                for j in range(y.size(0)):
+                    corr_mats[1][y[j], outa.detach().max(1)[1][j]] += 1
+                    corr_mats[0][y[j], output.detach().max(1)[1][j]] += 1
+                    # corr_mats[2][y.max(1)[1][j], outad.detach().max(1)[1][j]] += 1
                 # print('sag')
                 # y = y.detach()
                 # X = X.detach()
