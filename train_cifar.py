@@ -1205,19 +1205,7 @@ logger.info(args.out_dir)
 # print(args.out_dir)
 evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
-# # cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt)
-# # logger.info('cw20 : loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
-# print("sag")
-# mats, accs = evaluate_splits(args, logger, model, test_loader, prompt=prompt[:,args.prompt_length:,:], steps=30)
-# fg, axarr = plt.subplots(len(mats), len(mats[0]))
 
-# for i in range(len(mats)):
-#     for j in range(len(mats[0])):
-#         axarr[i,j].matshow(mats[i][j])
-#         # axarr[i,j].set_ylabel("{:.2f}".format(accs[i, j]))
-#         axarr[i,j].axis('off')
-# plt.savefig(args.out_dir + "/mat_of_splits_len{}.png".format(str(prompt.size(1) - args.prompt_length)))
-# logger.info('Saved mat to outdir'
 chkpnt = None
 train_loader = None
 args.eval_iters = 10
