@@ -1220,11 +1220,11 @@ evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 # logger.info('Saved mat to outdir'
 chkpnt = None
 train_loader = None
-# args.eval_iters = 10
-# args.alpha = 2
-# args.eval_restarts = 1
-# pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
-# logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
+args.eval_iters = 10
+args.alpha = 2
+args.eval_restarts = 1
+pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
+logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
 
 
 args.eval_iters = 20
