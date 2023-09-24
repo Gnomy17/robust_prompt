@@ -271,9 +271,9 @@ def evaluate_CW(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0,
 
 def CW_loss(x, y, reduction=True, num_cls=10, threshold=10, a_lam=-1, detection=False):
     batch_size = x.shape[0]
-    x_cut = x[:, :-1]
-    x_sorted, ind_sorted = x_cut.sort(dim=1) if detection else x.sort(dim=1)
-    # print(x_sorted.size(), detection)
+    x_cut = x[:, :num_cls]
+    x_sorted, ind_sorted = x_cut.sort(dim=1)
+    # print(ind_sorted)
     ind = (ind_sorted[:, -1] == y).float()
     logit_mc = x_sorted[:, -2] * ind + x_sorted[:, -1] * (1. - ind)
     logit_gt = x[np.arange(batch_size), y]
