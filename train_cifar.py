@@ -10,7 +10,7 @@ from parser_cifar import get_args
 from auto_LiRPA.utils import MultiAverageMeter
 from utils import *
 from torch.autograd import Variable
-from pgd import evaluate_pgd,evaluate_CW,evaluate_splits, CW_loss
+from pgd import evaluate_pgd,evaluate_CW, CW_loss, RCW_loss
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
 import matplotlib.pyplot as plt
@@ -143,12 +143,6 @@ if args.prompted or args.prompt_too:
         opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
     elif args.optim == 'adam':
         opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
-    if args.method == 'updown':
-        pup = prompt
-        optup = opt
-        pdown = make_prompt(args.prompt_length, 768)
-        dparams = [pdown]
-        optdown = torch.optim.SGD(dparams, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 elif args.method in ['voting']:
     prompts = []
     head_params = []
@@ -199,7 +193,7 @@ std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 upper_limit = ((1 - mu) / std).cuda()
 lower_limit = ((0 - mu) / std).cuda()
 
-def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=0):
+def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=0, detection=False, rcw=False):
     # max_loss = torch.zeros(y.shape[0]).cuda()
     # max_delta = torch.zeros_like(X).cuda()
     for zz in range(restarts):
@@ -216,10 +210,7 @@ def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
             index = torch.where(output.max(1)[1] == y)
             if len(index[0]) == 0:
                 break
-            loss = CW_loss(output, y)
-            if a_lam != 0:
-                a_label = torch.ones_like(y) * (output.size(1) - 1)
-                loss += a_lam * CW_loss(output, a_label)
+            loss = CW_loss(output, y, a_lam=a_lam, detection=detection) if not rcw else RCW_loss(output, y)
 
             grad = torch.autograd.grad(loss, delta)[0].detach()
             delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
@@ -348,6 +339,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         train_acc = 0
         train_clean = 0
         train_prompted = 0
+        train_adetect = 0
         train_n = 0
         hist_c = torch.zeros((10)).cuda()
         hist_a = torch.zeros((10)).cuda()
@@ -521,27 +513,31 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                 elif args.attack_type == 'cw':
                     delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt).detach()
+                elif args.attack_type == 'rcw':
+                    delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, rcw=True).detach()
                 X_adv = X + delta
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
-                loss = criterion(outc, y) + .1*criterion(outa, a_label)
+                loss = criterion(outc, y) - args.d_lam*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() #
                 model.zero_grad()
                 loss.backward()
                 
                 if args.attack_type == 'pgd':
                     d_a = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=a_label, a_lam=args.a_lam).detach()
-                elif args.attack_type == 'cw':
-                    d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam).detach()
+                elif args.attack_type in ['cw', 'rcw']:
+                    print('sag')
+                    d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
                 outad = model(X + d_a, prompt).detach()
                 acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
                     corr_mats[1][y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
                     corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                    corr_mats[2][y.max(1)[1][j], outad[:, :-1].detach().max(1)[1][j]] += 1
+                    corr_mats[2][y.max(1)[1][j], outad.detach().max(1)[1][j]] += 1
 
                 acc_a = (outa.max(1)[1] == a_label.max(1)[1]).float().mean().item() 
-                acc = (outad[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
-                return loss, acc, y, acc_a, handle_list, acc_c
+                acc = (outad.max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc_d = (outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()
+                return loss, acc, y, acc_a, acc_d, acc_c
             elif args.method == 'TRADES':
                 X = X.cuda()
                 y = y.cuda()
@@ -685,11 +681,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
             X_ = X[0: batch_size].cuda()  
             y_ = y[0: batch_size].cuda()  
             
-            loss, acc,y, p_acc, handle_list, clean_acc = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
+            loss, acc,y, p_acc, acc_ad, clean_acc = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
             train_loss += loss.item() * y_.size(0)
             train_acc += acc * y_.size(0)
             
             train_prompted += p_acc * y_.size(0)
+            train_adetect += acc_ad * y_.size(0)
             train_clean += clean_acc * y_.size(0)
             train_n += y_.size(0)
             grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) , args.grad_clip)
@@ -697,7 +694,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             opt.zero_grad()
             model.zero_grad()
             
-            if step + 1 == steps_per_epoch and args.method != 'natural':
+            if (step + 1 == steps_per_epoch or (step + 1) % 200 == 0) and args.method != 'natural':
                 fg, axarr = plt.subplots(1,4)
             
                 axarr[0].matshow(corr_mats[0]/train_n)
@@ -716,10 +713,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 plt.savefig(args.out_dir + "/mat_present_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
                 plt.close()
             if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
-                logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} acc {:.4f} clean acc {:.4f} prompt atk {:.4f}'.format(
+                logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} adaptive acc {:.4f} clean acc {:.4f} detect acc {:.4f} adetect acc {:.4f}'.format(
                     epoch, step + 1, len(train_loader),
                     opt.param_groups[0]['lr'],
-                        train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n
+                        train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n, train_adetect/ train_n
                 ))
             lr = lr_schedule(epoch_now)
             opt.param_groups[0].update(lr=lr)
@@ -739,17 +736,17 @@ evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
 
 chkpnt = None
-train_loader = None
+# train_loader = None
+# args.eval_iters = 10
+# args.alpha = 2
+# args.eval_restarts = 1
+# pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
+# logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
+
+
 args.eval_iters = 10
 args.alpha = 2
-args.eval_restarts = 1
-pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
-logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
-
-
-args.eval_iters = 20
-args.alpha = 2
-cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt, a_lam=args.a_lam, detection=True)
+cw_loss, cw_acc = evaluate_CW(args, model, train_loader, prompt=prompt, a_lam=args.a_lam, detection=True)
 logger.info('CW20: loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
 
 args.eval_iters = 50

@@ -34,7 +34,7 @@ def simul_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
         max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
         max_loss = torch.max(max_loss, all_loss)
     return max_delta
-def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=0):
+def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, tar=None, prompt=None, a_lam=0):
     max_loss = torch.zeros(y.shape[0]).cuda()
     max_delta = torch.zeros_like(X).cuda()
     for zz in range(restarts):
@@ -48,21 +48,25 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
                 output = model(X + delta, prompt)
             else:
                 output = model(X + delta)
-            index = torch.where(output.max(1)[1] == y)
-            if len(index[0]) == 0:
-                break
-            loss = F.cross_entropy(output, y)
+            # index = torch.where(output.max(1)[1] == y)
+            # if len(index[0]) == 0:
+            #     break
+            if tar is None:
+                loss = F.cross_entropy(output, y)
+                # loss = -(output[np.arange(X.size(0)), y]).mean()
+            elif tar is not None:
+                loss = -F.cross_entropy(output, tar)
             if a_lam != 0:
                 a_label = torch.ones_like(y) * (output.size(1) - 1)
                 loss *= (1- a_lam)
-                loss += a_lam * F.cross_entropy(output, a_label)
+                loss -= a_lam * (output[:, -1]).mean()#F.cross_entropy(output, a_label)
             loss.backward()
             grad = delta.grad.detach()
-            d = delta[index[0], :, :, :]
-            g = grad[index[0], :, :, :]
+            d = delta[:, :, :, :]
+            g = grad[:, :, :, :]
             d = clamp(d + alpha * torch.sign(g), -epsilon, epsilon)
-            d = clamp(d, lower_limit - X[index[0], :, :, :], upper_limit - X[index[0], :, :, :])
-            delta.data[index[0], :, :, :] = d
+            d = clamp(d, lower_limit - X[:, :, :, :], upper_limit - X[:, :, :, :])
+            delta.data[:, :, :, :] = d
             delta.grad.zero_()
         delta = delta.detach()
         output = output.detach()
@@ -88,9 +92,9 @@ def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
                 output = model(X + delta, prompt)
             else:
                 output = model(X + delta)
-            index = torch.where(output.max(1)[1] == y)
-            if len(index[0]) == 0:
-                break
+            # index = torch.where(output.max(1)[1] == y)
+            # if len(index[0]) == 0:
+            #     break
             loss = CW_loss(output, y, a_lam=a_lam, detection=detection)
             # if a_lam != 0:
             #     a_label = torch.ones_like(y) * (output.size(1) - 1)
@@ -98,11 +102,11 @@ def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
             #     loss += a_lam * CW_loss(output, a_label)
             # loss.backward()
             grad = torch.autograd.grad(loss, delta)[0].detach()
-            d = delta[index[0], :, :, :]
-            g = grad[index[0], :, :, :]
-            d = clamp(d + alpha * torch.sign(g), -epsilon, epsilon)
-            d = clamp(d, lower_limit - X[index[0], :, :, :], upper_limit - X[index[0], :, :, :])
-            delta.data[index[0], :, :, :] = d
+            # d = delta[index[0], :, :, :]
+            # g = grad[index[0], :, :, :]
+            delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+            delta = clamp(delta, lower_limit - X, upper_limit - X)
+            # delta.data[index[0], :, :, :] = d
             # delta.grad.zero_()
         delta = delta.detach()
         # if prompt is not None:
@@ -126,58 +130,6 @@ def split_vote(args, X, y, model, prompt, length):
         # print(votes)
         return (votes.max(1)[1] == y).float().sum().item(), outs
 
-def evaluate_splits(args, logger, model, test_loader, prompt, steps):
-    attack_iters = args.eval_iters # 50
-    restarts = args.eval_restarts # 10
-    pgd_loss = 0
-    pgd_acc = 0
-    n = 0
-    model.eval()
-    logger.info('Evaluating with splits'.format(attack_iters, restarts))
-    if args.dataset=="cifar":
-        mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
-        std = torch.tensor(cifar10_std).view(3,1,1).cuda()
-    if args.dataset=="imagenette" or args.dataset=="imagenet" :
-        mu = torch.tensor(imagenet_mean).view(3,1,1).cuda()
-        std = torch.tensor(imagenet_std).view(3,1,1).cuda()
-    upper_limit = ((1 - mu)/ std)
-    lower_limit = ((0 - mu)/ std)
-    epsilon = (args.epsilon / 255.) / std
-    alpha = (args.alpha / 255.) / std
-    num_splits = prompt.size(1)//args.prompt_length
-    mats = [[torch.zeros((10, 10)) for _ in range(num_splits + 1)] for __ in range(num_splits)]
-    accs = [[0 for _ in range(num_splits)] for __ in range(num_splits)]
-    acc_vote = 0
-    acc_simul = 0
-    num_samps = 0
-    for step, (X, y) in enumerate(test_loader):
-        deltas = []
-        X, y = X.cuda(), y.cuda()
-        num_samps += y.size(0)
-        for i in range(num_splits):
-            # print(prompt[:,i*args.prompt_length:,:].size())
-            pgd_delta = attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt[:,i*args.prompt_length:,:]).detach()
-            deltas.append(pgd_delta)
-        print(step)
-        for i in range(num_splits):
-            for j, d in enumerate(deltas):
-                out = model(X + d,prompt[:, i*args.prompt_length:, :]).detach()
-                accs[i][j] += (out.max(1)[1] == y).sum().item()
-                for k in range(y.size(0)):
-                    mats[i][j][y[k], out.max(1)[1][k]] += 1
-                if j == 0 and i==0:
-                    acc, _ = split_vote(args, X + d, y, model, prompt, args.prompt_length)
-                    acc_vote += acc  
-        dsimul = simul_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt, length=args.prompt_length).detach()    
-        acc, outs = split_vote(args, X + dsimul, y, model, prompt, args.prompt_length)
-        for i, o in enumerate(outs):
-            mats[i][-1][y[k], o[k]] +=1 
-        acc_simul += acc
-        if step >= steps:
-            break
-            
-    logger.info("Vote acc: {:.4f} Simul acc: {:.4f}".format(acc_vote/num_samps, acc_simul/num_samps))
-    return mats, np.array(accs)/num_samps
 
 def evaluate_pgd(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0):
     attack_iters = args.eval_iters # 50
@@ -187,7 +139,7 @@ def evaluate_pgd(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0
     n = 0
     model.eval()
     print('Evaluating with PGD {} steps and {} restarts'.format(attack_iters, restarts))
-    if a_lam != 0:
+    if a_lam >= 0:
         print('Using adaptive loss with lambda {:.4f} to avoid detection'.format(a_lam))
         detect_acc = 0
     if args.dataset=="cifar":
@@ -209,7 +161,7 @@ def evaluate_pgd(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0
             else:
                 output = model(X + pgd_delta)
             loss = F.cross_entropy(output, y)
-            if a_lam != 0:
+            if a_lam >= 0:
                 a_label = torch.ones_like(y) * (output.size(1) - 1)
                 loss += a_lam * F.cross_entropy(output, a_label)
                 detect_acc += (output.max(1)[1] == a_label).sum().item()
@@ -220,7 +172,7 @@ def evaluate_pgd(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0
             break
         if (step + 1) % 10 == 0 or step + 1 == len(test_loader):
             print('{}/{}'.format(step+1, len(test_loader)), 
-                pgd_loss/n, pgd_acc/n, detect_acc/n if a_lam != 0 else '')
+                pgd_loss/n, pgd_acc/n, detect_acc/n if a_lam >= 0 else '')
     return pgd_loss/n, pgd_acc/n
 
 def evaluate_CW(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0, detection=False):
@@ -283,6 +235,36 @@ def CW_loss(x, y, reduction=True, num_cls=10, threshold=10, a_lam=-1, detection=
         loss_value *= 1- a_lam
         loss_value -= a_lam * x[:, -1]
         # print(a_lam)
+    if reduction:
+        return loss_value.mean()
+    else:
+        return loss_value
+
+def RCW_loss(x, y, reduction=True, num_cls=10, threshold = 10):
+    batch_size = x.shape[0]
+    x_cut = x[:, :num_cls]
+    inds = torch.randint(0, num_cls, size=(batch_size,)).cuda()
+    while (sum(inds == y).item() > 0):
+        inds[inds==y] = torch.randint(0, num_cls, size=(sum(inds==y).item(),)).cuda()
+    logit_r = x_cut[np.arange(batch_size), inds]
+    logit_c = x_cut[np.arange(batch_size), y]
+    loss_value_ori = -(logit_c - logit_r)
+    loss_value = torch.maximum(loss_value_ori, torch.tensor(-threshold).cuda())
+    if reduction:
+        return loss_value.mean()
+    else:
+        return loss_value
+
+def ACW_loss(x, y, reduction=True, num_cls=10, threshold = 10):
+    batch_size = x.shape[0]
+    logit_l = x[:, -1]
+    x_cut = x[:, :-1]
+    x_sorted, ind_sorted = x_cut.sort(dim=1)
+    print(x_cut.size())
+    ind = (ind_sorted[:, -1] == y).float()
+    logit_mc = x_sorted[:, -2] * ind + x_sorted[:, -1] * (1. - ind)
+    loss_value_ori = (logit_mc - logit_l)
+    loss_value = torch.maximum(loss_value_ori, torch.tensor(-threshold).cuda())
     if reduction:
         return loss_value.mean()
     else:
