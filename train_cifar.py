@@ -525,7 +525,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.attack_type == 'pgd':
                     d_a = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=a_label, a_lam=args.a_lam).detach()
                 elif args.attack_type in ['cw', 'rcw']:
-                    print('sag')
+                    # print('sag')
                     d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
                 outad = model(X + d_a, prompt).detach()
                 acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()

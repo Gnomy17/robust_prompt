@@ -232,6 +232,7 @@ def CW_loss(x, y, reduction=True, num_cls=10, threshold=10, a_lam=-1, detection=
     loss_value_ori = -(logit_gt - logit_mc)
     loss_value = torch.maximum(loss_value_ori, torch.tensor(-threshold).cuda())
     if detection and a_lam >= 0:
+        # print(a_lam)
         loss_value *= 1- a_lam
         loss_value -= a_lam * x[:, -1]
         # print(a_lam)
