@@ -507,6 +507,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 X_adv = X + delta
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
+                ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
                 loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
                 #  ).mean() + args.d_lam * torch.maximum(outa.max(dim=1)[0] - outa[:, -1], torch.tensor(-10).cuda()).mean()
@@ -727,15 +728,15 @@ evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
 
 chkpnt = None
-# train_loader = None
-# args.eval_iters = 10
-# args.alpha = 2
-# args.eval_restarts = 1
-# pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
-# logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
-
-
+train_loader = None
 args.eval_iters = 10
+args.alpha = 2
+args.eval_restarts = 1
+pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
+logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
+
+
+args.eval_iters = 20
 args.alpha = 2
 cw_loss, cw_acc = evaluate_CW(args, model, train_loader, prompt=prompt, a_lam=args.a_lam, detection=True)
 logger.info('CW20: loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
