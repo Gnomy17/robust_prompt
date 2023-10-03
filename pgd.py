@@ -34,6 +34,7 @@ def simul_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
         max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
         max_loss = torch.max(max_loss, all_loss)
     return max_delta
+    
 def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, tar=None, prompt=None, a_lam=0):
     max_loss = torch.zeros(y.shape[0]).cuda()
     max_delta = torch.zeros_like(X).cuda()
@@ -48,12 +49,8 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
                 output = model(X + delta, prompt)
             else:
                 output = model(X + delta)
-            # index = torch.where(output.max(1)[1] == y)
-            # if len(index[0]) == 0:
-            #     break
             if tar is None:
                 loss = F.cross_entropy(output, y)
-                # loss = -(output[np.arange(X.size(0)), y]).mean()
             elif tar is not None:
                 loss = -F.cross_entropy(output, tar)
             if a_lam != 0:
@@ -78,6 +75,9 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
         max_loss = torch.max(max_loss, all_loss)
     return max_delta
 
+
+
+
 def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=-1, detection=False):
     max_loss = torch.zeros(y.shape[0]).cuda()
     max_delta = torch.zeros_like(X).cuda()
@@ -92,29 +92,13 @@ def attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
                 output = model(X + delta, prompt)
             else:
                 output = model(X + delta)
-            # index = torch.where(output.max(1)[1] == y)
-            # if len(index[0]) == 0:
-            #     break
             loss = CW_loss(output, y, a_lam=a_lam, detection=detection)
-            # if a_lam != 0:
-            #     a_label = torch.ones_like(y) * (output.size(1) - 1)
-            #     loss *= (1- a_lam)
-            #     loss += a_lam * CW_loss(output, a_label)
-            # loss.backward()
+
             grad = torch.autograd.grad(loss, delta)[0].detach()
-            # d = delta[index[0], :, :, :]
-            # g = grad[index[0], :, :, :]
+
             delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
             delta = clamp(delta, lower_limit - X, upper_limit - X)
-            # delta.data[index[0], :, :, :] = d
-            # delta.grad.zero_()
         delta = delta.detach()
-        # if prompt is not None:
-        #     all_loss = CW_loss(model(X+delta, prompt), y, reduction=False).detach()
-        # else:
-        #     all_loss = CW_loss(model(X+delta), y, reduction=False).detach()
-        # max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
-        # max_loss = torch.max(max_loss, all_loss)
     return delta
 
 def split_vote(args, X, y, model, prompt, length):
@@ -198,7 +182,7 @@ def evaluate_CW(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0,
     alpha = (args.alpha / 255.) / std
     for step, (X, y) in enumerate(test_loader):
         X, y = X.cuda(), y.cuda()
-        pgd_delta = attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt, a_lam=a_lam, detection=detection)
+        pgd_delta = cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt, a_lam=a_lam, detection=detection)
         with torch.no_grad():
             if prompt is not None:
                 output = model(X + pgd_delta, prompt)
