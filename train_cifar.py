@@ -132,12 +132,12 @@ if args.prompted or args.prompt_too:
     prompts = [prompt]
     params = [prompt]
 
-    if args.prompt_too:
-        for p in model.parameters():
-            params.append(p)
-    else:
-        for p in model.module.head.parameters():
-            params.append(p)
+    # if args.prompt_too:
+    #     for p in model.parameters():
+    #         params.append(p)
+    # else:
+    #     for p in model.module.head.parameters():
+    #         params.append(p)
         
     if args.optim == 'sgd':
         opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
@@ -194,8 +194,6 @@ upper_limit = ((1 - mu) / std).cuda()
 lower_limit = ((0 - mu) / std).cuda()
 
 def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=0, detection=False, rcw=False):
-    # max_loss = torch.zeros(y.shape[0]).cuda()
-    # max_delta = torch.zeros_like(X).cuda()
     for zz in range(restarts):
         delta = torch.zeros_like(X).cuda()
         for i in range(len(epsilon)):
@@ -207,23 +205,13 @@ def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
                 output = model(X + delta, prompt)
             else:
                 output = model(X + delta)
-            index = torch.where(output.max(1)[1] == y)
-            if len(index[0]) == 0:
-                break
             loss = CW_loss(output, y, a_lam=a_lam, detection=detection) if not rcw else RCW_loss(output, y)
 
             grad = torch.autograd.grad(loss, delta)[0].detach()
             delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
             delta.data = clamp(delta, lower_limit - X, upper_limit - X)
         delta = delta.detach()
-        # if prompt is not None:
-        #     all_loss = CW_loss(model(X+delta, prompt), y, reduction=False).detach()
-        # else:
-        #     all_loss = CW_loss(model(X+delta), y, reduction=False).detach()
-        # max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
-        # max_loss = torch.max(max_loss, all_loss)
     return delta
-
 
 
 def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None, target=None, avoid= None, deep=False):
@@ -503,6 +491,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             elif args.method == 'detect':
                 X = X.cuda()
                 y = y.cuda()
+                bsize = X.size(0)
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
                 a_label = (nclasses - 1) * torch.ones_like(y.max(1)[1])
@@ -518,7 +507,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 X_adv = X + delta
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
-                loss = criterion(outc, y) - args.d_lam*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() #
+                loss = criterion(outc, y) - args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
+                # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
+                #  ).mean() + args.d_lam * torch.maximum(outa.max(dim=1)[0] - outa[:, -1], torch.tensor(-10).cuda()).mean()
                 model.zero_grad()
                 loss.backward()
                 
@@ -535,7 +526,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     corr_mats[2][y.max(1)[1][j], outad.detach().max(1)[1][j]] += 1
 
                 acc_a = (outa.max(1)[1] == a_label.max(1)[1]).float().mean().item() 
-                acc = (outad.max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc = (outad[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
                 acc_d = (outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()
                 return loss, acc, y, acc_a, acc_d, acc_c
             elif args.method == 'TRADES':
