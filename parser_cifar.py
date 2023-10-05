@@ -20,7 +20,7 @@ def get_args():
     parser.add_argument('--load_path', default='', type=str)
     parser.add_argument('--scratch', action='store_true')
     parser.add_argument('--n_w', type=int, default=10)
-    parser.add_argument('--attack-type', type=str, default='pgd', choices=['pgd', 'cw', 'rcw'])
+    parser.add_argument('--attack-type', type=str, default='pgd', choices=['pgd', 'cw', 'acw'])
     parser.add_argument('--cw', action='store_true')
     parser.add_argument('--num_prompts', type=int, default=3)
     parser.add_argument('--attack-iters', type=int, default=10, help='for pgd training')

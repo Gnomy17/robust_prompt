@@ -10,7 +10,7 @@ from parser_cifar import get_args
 from auto_LiRPA.utils import MultiAverageMeter
 from utils import *
 from torch.autograd import Variable
-from pgd import evaluate_pgd,evaluate_CW, CW_loss, RCW_loss
+from pgd import evaluate_pgd,evaluate_CW, CW_loss, ACW_loss
 from evaluate import evaluate_aa
 from auto_LiRPA.utils import logger
 import matplotlib.pyplot as plt
@@ -143,6 +143,9 @@ if args.prompted or args.prompt_too:
         opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
     elif args.optim == 'adam':
         opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
+    
+    # if args.method == 'sdetect':
+    #     dprompt = make_prompt(args.prompt_length, 768)
 elif args.method in ['voting']:
     prompts = []
     head_params = []
@@ -193,7 +196,7 @@ std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 upper_limit = ((1 - mu) / std).cuda()
 lower_limit = ((0 - mu) / std).cuda()
 
-def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=0, detection=False, rcw=False):
+def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=0, detection=False, acw=False):
     for zz in range(restarts):
         delta = torch.zeros_like(X).cuda()
         for i in range(len(epsilon)):
@@ -205,7 +208,7 @@ def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
                 output = model(X + delta, prompt)
             else:
                 output = model(X + delta)
-            loss = CW_loss(output, y, a_lam=a_lam, detection=detection) if not rcw else RCW_loss(output, y)
+            loss = CW_loss(output, y, a_lam=a_lam, detection=detection) if not acw else ACW_loss(output, y)
 
             grad = torch.autograd.grad(loss, delta)[0].detach()
             delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
@@ -504,15 +507,15 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                 elif args.attack_type == 'cw':
                     delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt).detach()
-                elif args.attack_type == 'rcw':
-                    delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, rcw=True).detach()
+                elif args.attack_type == 'acw':
+                    delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, acw=True).detach()
                 X_adv = X + delta
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
                 ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
-                loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
-                     + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
-                # loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
+                # loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
+                #      + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
+                loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
                 #  ).mean() + args.d_lam * torch.maximum(outa.max(dim=1)[0] - outa[:, -1], torch.tensor(-10).cuda()).mean()
                 model.zero_grad()
@@ -520,7 +523,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 
                 if args.attack_type == 'pgd':
                     d_a = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=a_label, a_lam=args.a_lam).detach()
-                elif args.attack_type in ['cw', 'rcw']:
+                elif args.attack_type in ['cw', 'acw']:
                     # print('sag')
                     d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
                 outad = model(X + d_a, prompt).detach()
@@ -530,11 +533,12 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     corr_mats[0][y.max(1)[1][j], outc[:, :-1].detach().max(1)[1][j]] += 1
                     corr_mats[2][y.max(1)[1][j], outad[:, :-1].detach().max(1)[1][j]] += 1
 
-                acc_a = (outa[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item() 
-                acc = (outad[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item()
-                acc_d = (outc[:, -1] <= torch.zeros_like(y.max(1)[1])).float().mean().item()
+                acc_a = (outa.max(1)[1] == a_label.max(1)[1]).float().mean().item()#(outa[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item() 
+                acc = (outad[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc_d = (outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()
                 return loss, acc, y, acc_a, acc_d, acc_c
-            # elif args.method == 'sep-detect':s
+            # elif args.method == 'sep-detect':
+
             elif args.method == 'TRADES':
                 X = X.cuda()
                 y = y.cuda()

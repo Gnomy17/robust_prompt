@@ -34,7 +34,7 @@ def simul_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
         max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
         max_loss = torch.max(max_loss, all_loss)
     return max_delta
-    
+
 def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, tar=None, prompt=None, a_lam=0):
     max_loss = torch.zeros(y.shape[0]).cuda()
     max_delta = torch.zeros_like(X).cuda()
@@ -243,13 +243,15 @@ def RCW_loss(x, y, reduction=True, num_cls=10, threshold = 10):
 def ACW_loss(x, y, reduction=True, num_cls=10, threshold = 10):
     batch_size = x.shape[0]
     logit_l = x[:, -1]
+    logit_c = x[np.arange(batch_size), y]
     x_cut = x[:, :-1]
     x_sorted, ind_sorted = x_cut.sort(dim=1)
-    print(x_cut.size())
+    # print(x_cut.size())
     ind = (ind_sorted[:, -1] == y).float()
     logit_mc = x_sorted[:, -2] * ind + x_sorted[:, -1] * (1. - ind)
-    loss_value_ori = (logit_mc - logit_l)
-    loss_value = torch.maximum(loss_value_ori, torch.tensor(-threshold).cuda())
+    diffl = torch.maximum(logit_mc - logit_l, torch.tensor(-threshold).cuda())
+    diffc = torch.maximum(logit_mc - logit_c, torch.tensor(-threshold).cuda())
+    loss_value = (diffl + diffc)/2
     if reduction:
         return loss_value.mean()
     else:
