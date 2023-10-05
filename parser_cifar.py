@@ -36,10 +36,10 @@ def get_args():
     parser.add_argument('--mix_lam', type=float, default=-1)
     parser.add_argument('--a_lam', type=float, default=-1)
     parser.add_argument('--d_lam', type=float, default=0.1)
-    
+
     parser.add_argument('--prompt_too', action='store_true')
     parser.add_argument('--prompt_length', type=int, default=100)
-    parser.add_argument('--ws', type=int, default=2)
+    parser.add_argument('--ws', type=int, default=0)
     parser.add_argument('--train_head', action='store_true')
     parser.add_argument('--drop-rate', default=1.0, type=float)
     parser.add_argument("--beta", type=float, default=6.0)

@@ -508,7 +508,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
                 ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
-                loss = criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
+                if epoch < args.ws:
+                    loss = criterion(outc[:, :-1], y[:, :-1])
+                else:
+                    loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
                      + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
                 # loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
