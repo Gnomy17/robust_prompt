@@ -132,12 +132,12 @@ if args.prompted or args.prompt_too:
     prompts = [prompt]
     params = [prompt]
 
-    # if args.prompt_too:
-    #     for p in model.parameters():
-    #         params.append(p)
-    # else:
-    #     for p in model.module.head.parameters():
-    #         params.append(p)
+    if args.prompt_too:
+        for p in model.parameters():
+            params.append(p)
+    else:
+        for p in model.module.head.parameters():
+            params.append(p)
         
     if args.optim == 'sgd':
         opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
@@ -337,7 +337,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
         pfvs = []
         pfvs_a = []
         flabels = []
-
+        if epoch == args.ws and args.method == 'AT':
+            opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 
         def train_step(X, y, t, mixup_fn, hist_a, hist_c, corr_mats):
             global prompt, done_prompt, opt
@@ -382,7 +383,25 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         if isinstance(module, Block):
                             handle_list.append(module.drop_path.register_backward_hook(drop_hook_func))
             model.train()
-            if args.method == 'AT':
+            if args.method == 'natural' or epoch < args.ws:
+                X = X.cuda()
+                y = y.cuda()
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                if args.prompted or args.prompt_too:
+                    output = model(X, prompt)
+                    # print('sag')
+                elif args.blocked:
+                    output = model(X, prompt(X))
+                else:
+                    output = model(X)
+
+                loss = criterion(output, y)
+                loss.backward()
+                acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
+
+                return loss, acc, y, acc, acc, acc 
+            elif args.method == 'AT':
                 X = X.cuda()
                 y = y.cuda()
                 if mixup_fn is not None:
@@ -392,7 +411,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     if args.full_white:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                     else:
-
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach() #prompt=prompt, avoid=labs).detach()
                         t = F.one_hot((y.max(1)[1] + 1) % 10, 10).float()
                         d2 =  pgd_attack(model, X, t, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
@@ -401,19 +419,19 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     out = model(X + delta, prompt)#, get_fs=True)
                     outc = model(X, prompt)
                     # fb = fb.detach()
-                    out2 = model(X + d2, prompt)
+                    # out2 = model(X + d2, prompt)
 
-                    loss = criterion(out, y) #+ criterion(outc, y) #+ criterion(outt, y)
+                    loss = (1 - args.d_lam) * criterion(outc, y) + args.d_lam * criterion(out, y) #+ criterion(outc, y) #+ criterion(outt, y)
                     loss.backward()
 
                     acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()#cosim(fw[:, args.prompt_length, :], fb[:, args.prompt_length, :]).detach().mean().item()
-                    acc2 = (out2.max(1)[1] == t.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
+                    # acc2 = (out2.max(1)[1] == t.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
                     for j in range(y.size(0)):
                         corr_mats[1][y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
                         corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                        corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
-                    return loss, acc, y, acc2, handle_list, acc_c
+                        # corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
+                    return loss, acc, y, acc_c, acc, acc_c
                 else:
                     delta = pgd_attack(model_copy, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
@@ -471,23 +489,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
                 return accs, accs_vote, losses, 0, 0
 
-            elif args.method == 'natural':
-                X = X.cuda()
-                y = y.cuda()
-                if mixup_fn is not None:
-                    X, y = mixup_fn(X, y)
-                if args.prompted or args.prompt_too:
-                    output, pfv = model(X, prompt, get_fs=True)
-                elif args.blocked:
-                    output = model(X, prompt(X))
-                else:
-                    output = model(X)
-
-                loss = criterion(output, y)
-                loss.backward()
-                acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
-
-                return loss, acc, y, acc, handle_list, acc           
+                      
             elif args.method == 'detect':
                 X = X.cuda()
                 y = y.cuda()
@@ -508,10 +510,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
                 ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
-                if epoch < args.ws:
-                    loss = criterion(outc[:, :-1], y[:, :-1])
-                else:
-                    loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
+                loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
                      + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
                 # loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
