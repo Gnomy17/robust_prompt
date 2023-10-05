@@ -297,7 +297,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
 
     criterion = nn.CrossEntropyLoss()
-
+    bceloss = nn.BCEWithLogitsLoss()
     steps_per_epoch = len(train_loader)
     
     
@@ -508,7 +508,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
                 ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
-                loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
+                loss = criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
+                     + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
+                # loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
                 #  ).mean() + args.d_lam * torch.maximum(outa.max(dim=1)[0] - outa[:, -1], torch.tensor(-10).cuda()).mean()
                 model.zero_grad()
@@ -520,16 +522,17 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     # print('sag')
                     d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
                 outad = model(X + d_a, prompt).detach()
-                acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc_c = (outc[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
-                    corr_mats[1][y.max(1)[1][j], outa.detach().max(1)[1][j]] += 1
-                    corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                    corr_mats[2][y.max(1)[1][j], outad.detach().max(1)[1][j]] += 1
+                    corr_mats[1][y.max(1)[1][j], outa[:, :-1].detach().max(1)[1][j]] += 1
+                    corr_mats[0][y.max(1)[1][j], outc[:, :-1].detach().max(1)[1][j]] += 1
+                    corr_mats[2][y.max(1)[1][j], outad[:, :-1].detach().max(1)[1][j]] += 1
 
-                acc_a = (outa.max(1)[1] == a_label.max(1)[1]).float().mean().item() 
-                acc = (outad[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
-                acc_d = (outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()
+                acc_a = (outa[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item() 
+                acc = (outad[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item()
+                acc_d = (outc[:, -1] <= torch.zeros_like(y.max(1)[1])).float().mean().item()
                 return loss, acc, y, acc_a, acc_d, acc_c
+            # elif args.method == 'sep-detect':s
             elif args.method == 'TRADES':
                 X = X.cuda()
                 y = y.cuda()
