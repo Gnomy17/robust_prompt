@@ -18,8 +18,8 @@ from buffer import Buffer
 # torch.autograd.set_detect_anomaly(True)
 args = get_args()
 joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
-def make_prompt(length, h_dim, init_xavier=True):
-    prompt = torch.zeros(1, length, h_dim, requires_grad=True)
+def make_prompt(length, h_dim, depth=1,init_xavier=True):
+    prompt = torch.zeros(1, length, h_dim, depth, requires_grad=True)
     prompt.cuda()
     if init_xavier:
         nn.init.xavier_uniform_(prompt)
@@ -146,6 +146,21 @@ if args.prompted or args.prompt_too:
     
     # if args.method == 'sdetect':
     #     dprompt = make_prompt(args.prompt_length, 768)
+elif args.prefixed:
+    if args.load:
+        prompt = (checkpoint['prompt'])[0]
+    else:
+        prompt = make_prompt(args.prompt_length, 768, depth=model.module.depth)
+
+    prompts = [prompt]
+    params = [prompt]
+
+    for p in model.module.head.parameters():
+        params.append(p)
+    
+    if args.optim == 'sgd':
+        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
+    
 elif args.method in ['voting']:
     prompts = []
     head_params = []
@@ -515,7 +530,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
                 # loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
                 #      + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
-                loss = criterion(outc, y)  + args.d_lam * criterion(outa, a_label)#- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() # + args.d_lam * criterion(outa, a_label) 
+                loss = criterion(outc, y) + args.d_lam * criterion(outa, a_label)  #- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
                 #  ).mean() + args.d_lam * torch.maximum(outa.max(dim=1)[0] - outa[:, -1], torch.tensor(-10).cuda()).mean()
                 model.zero_grad()
