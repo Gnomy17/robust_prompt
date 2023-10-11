@@ -127,7 +127,7 @@ if args.prompted or args.prompt_too:
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
-        prompt = make_prompt(args.prompt_length, 768)
+        prompt = make_prompt(args.prompt_length, 768, depth=args.prompt_depth)
 
     prompts = [prompt]
     params = [prompt]
@@ -194,7 +194,7 @@ def evaluate_natural(args, model, test_loader, verbose=False, prompt=None):
         def test_step(step, X_batch, y_batch):
             X, y = X_batch.cuda(), y_batch.cuda()
             if prompt is not None:
-                output = model(X, prompt)
+                output = model(X, prompt, deep=args.deep_prompt)
             else:
                 output = model(X)
             loss = F.cross_entropy(output, y)
@@ -220,7 +220,7 @@ def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
         delta.requires_grad = True
         for _ in range(attack_iters):
             if prompt is not None:
-                output = model(X + delta, prompt)
+                output = model(X + delta, prompt, deep=args.deep_prompt)
             else:
                 output = model(X + delta)
             loss = CW_loss(output, y, a_lam=a_lam, detection=detection) if not acw else ACW_loss(output, y)
@@ -407,7 +407,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
                 if args.prompted or args.prompt_too:
-                    output = model(X, prompt)
+                    output = model(X, prompt, deep=args.deep_prompt)
                     # print('sag')
                 elif args.blocked:
                     output = model(X, prompt(X))
@@ -425,17 +425,17 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
                 
-                if args.prompted or args.prompt_too:
+                if args.prompted or args.prefixed:
                     if args.full_white:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, deep=args.deep_prompt).detach()
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach() #prompt=prompt, avoid=labs).detach()
                         t = F.one_hot((y.max(1)[1] + 1) % 10, 10).float()
                         d2 =  pgd_attack(model, X, t, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
 
                     X.detach()
-                    out = model(X + delta, prompt)#, get_fs=True)
-                    outc = model(X, prompt)
+                    out = model(X + delta, prompt, deep=args.deep_prompt)#, get_fs=True)
+                    outc = model(X, prompt, deep=args.deep_prompt)
                     # fb = fb.detach()
                     # out2 = model(X + d2, prompt)
 
@@ -752,7 +752,6 @@ evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
 
 chkpnt = None
-train_loader = None
 args.eval_iters = 10
 args.alpha = 2
 args.eval_restarts = 1
@@ -762,7 +761,7 @@ logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
 
 args.eval_iters = 20
 args.alpha = 2
-cw_loss, cw_acc = evaluate_CW(args, model, train_loader, prompt=prompt, a_lam=args.a_lam, detection=True)
+cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt, a_lam=args.a_lam, detection=True)
 logger.info('CW20: loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
 
 args.eval_iters = 50
