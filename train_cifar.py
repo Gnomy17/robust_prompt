@@ -521,7 +521,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.attack_type == 'pgd':
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                 elif args.attack_type == 'cw':
-                    delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt).detach()
+                    delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
                 elif args.attack_type == 'acw':
                     delta = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, acw=True).detach()
                 X_adv = X + delta
@@ -530,17 +530,17 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
                 # loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
                 #      + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
-                loss = criterion(outc, y) + args.d_lam * criterion(outa, a_label)  #- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() 
+                loss = (1 - args.d_lam) * criterion(outc, y) + args.d_lam * criterion(outa, a_label)  #- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
                 #  ).mean() + args.d_lam * torch.maximum(outa.max(dim=1)[0] - outa[:, -1], torch.tensor(-10).cuda()).mean()
                 model.zero_grad()
                 loss.backward()
                 
-                if args.attack_type == 'pgd':
-                    d_a = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=a_label, a_lam=args.a_lam).detach()
-                elif args.attack_type in ['cw', 'acw']:
+                # if args.attack_type == 'pgd':
+                #     d_a = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, avoid=a_label, a_lam=args.a_lam).detach()
+                # elif args.attack_type in ['cw', 'acw']:
                     # print('sag')
-                    d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
+                d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
                 outad = model(X + d_a, prompt).detach()
                 acc_c = (outc[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
