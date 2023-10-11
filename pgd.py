@@ -182,7 +182,7 @@ def evaluate_CW(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0,
     alpha = (args.alpha / 255.) / std
     for step, (X, y) in enumerate(test_loader):
         X, y = X.cuda(), y.cuda()
-        pgd_delta = cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt, a_lam=a_lam, detection=detection)
+        pgd_delta = attack_cw(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt, a_lam=a_lam, detection=detection)
         with torch.no_grad():
             if prompt is not None:
                 output = model(X + pgd_delta, prompt)
