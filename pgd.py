@@ -66,7 +66,7 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
             delta.data[:, :, :, :] = d
             delta.grad.zero_()
         delta = delta.detach()
-        output = output.detach()
+        # output = output.detach()
         if prompt is not None:
             all_loss = F.cross_entropy(model(X+delta, prompt), y, reduction='none').detach()
         else:

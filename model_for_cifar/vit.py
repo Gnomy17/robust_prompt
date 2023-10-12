@@ -374,6 +374,10 @@ class VisionTransformer(nn.Module):
                     x = torch.cat((bprompt, x), dim=1)
                 else:
                     x = torch.cat((bprompt, x[:, prompt.size(1):, :]), dim=1)
+                #### additive prefix tuning ####
+                # else:
+                #     p = bprompt + x[:, :prompt.size(1), :]
+                #     x = torch.cat((p, x[:, prompt.size(1), :]), dim=1)
             x = blk(x)
         x = self.norm(x)
         x_cls = x[:, shift]
