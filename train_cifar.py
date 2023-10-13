@@ -355,6 +355,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         pfvs = []
         pfvs_a = []
         flabels = []
+        ### freeze head weights after warmstart #####
         if epoch == args.ws and args.method == 'AT':
             opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 
@@ -432,24 +433,27 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach() #prompt=prompt, avoid=labs).detach()
                         t = F.one_hot((y.max(1)[1] + 1) % 10, 10).float()
                         d2 =  pgd_attack(model, X, t, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                        out2 = model(X + d2, prompt).detach()
+                        acc2 = (out2.max(1)[1] == t.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
 
                     X.detach()
                     out = model(X + delta, prompt, deep=args.deep_prompt)#, get_fs=True)
                     outc = model(X, prompt, deep=args.deep_prompt)
                     # fb = fb.detach()
-                    # out2 = model(X + d2, prompt)
+                    
 
                     loss = (1 - args.d_lam) * criterion(outc, y) + args.d_lam * criterion(out, y) #+ criterion(outc, y) #+ criterion(outt, y)
                     loss.backward()
 
                     acc = (out.max(1)[1] == y.max(1)[1]).float().mean().item()
                     acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()#cosim(fw[:, args.prompt_length, :], fb[:, args.prompt_length, :]).detach().mean().item()
-                    # acc2 = (out2.max(1)[1] == t.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
+                    # 
                     for j in range(y.size(0)):
                         corr_mats[1][y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
                         corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                        # corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
-                    return loss, acc, y, acc_c, acc, acc_c
+                        if not args.full_white
+                            corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
+                    return loss, acc, y, acc_c, acc, acc_c if args.full_white else acc2
                 else:
                     delta = pgd_attack(model_copy, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
