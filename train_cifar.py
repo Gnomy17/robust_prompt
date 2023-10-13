@@ -451,7 +451,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     for j in range(y.size(0)):
                         corr_mats[1][y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
                         corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                        if not args.full_white
+                        if not args.full_white:
                             corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
                     return loss, acc, y, acc_c, acc, acc_c if args.full_white else acc2
                 else:
