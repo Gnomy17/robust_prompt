@@ -356,8 +356,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
         pfvs_a = []
         flabels = []
         ### freeze head weights after warmstart #####
-        if epoch == args.ws and args.method == 'AT':
-            opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
+        # if epoch == args.ws and args.method == 'AT':
+        #     opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 
         def train_step(X, y, t, mixup_fn, hist_a, hist_c, corr_mats):
             global prompt, done_prompt, opt
