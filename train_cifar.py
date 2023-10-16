@@ -243,20 +243,20 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
     delta.requires_grad = True
     for _ in range(args.attack_iters if iters is None else iters):
         # patch drop
-        add_noise_mask = torch.ones_like(X)
-        grid_num_axis = int(args.resize / args.patch)
-        max_num_patch = grid_num_axis * grid_num_axis
-        ids = [i for i in range(max_num_patch)]
-        random.shuffle(ids)
-        num_patch = int(max_num_patch * (1 - drop_rate))
-        if num_patch !=0:
-            ids = np.array(ids[:num_patch])
-            rows, cols = ids // grid_num_axis, ids % grid_num_axis
-            for r, c in zip(rows, cols):
-                add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
-                c * args.patch:(c + 1) * args.patch] = 0
-        if args.PRM:
-            delta = delta * add_noise_mask
+        # add_noise_mask = torch.ones_like(X)
+        # grid_num_axis = int(args.resize / args.patch)
+        # max_num_patch = grid_num_axis * grid_num_axis
+        # ids = [i for i in range(max_num_patch)]
+        # random.shuffle(ids)
+        # num_patch = int(max_num_patch * (1 - drop_rate))
+        # if num_patch !=0:
+        #     ids = np.array(ids[:num_patch])
+        #     rows, cols = ids // grid_num_axis, ids % grid_num_axis
+        #     for r, c in zip(rows, cols):
+        #         add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
+        #         c * args.patch:(c + 1) * args.patch] = 0
+        # if args.PRM:
+        #     delta = delta * add_noise_mask
         if prompt is not None:
             if callable(prompt):
                 output = model(X + delta, prompt(X + delta), deep=deep)
@@ -532,9 +532,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa = model(X_adv, prompt)
                 outc = model(X, prompt)
                 ##### TODO : try separating the adv probability from the class predictions, alternatively adding a separate prompt #####
-                loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
-                     + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
-                # loss = (1 - args.d_lam) * criterion(outc, y) + args.d_lam * criterion(outa, a_label)  #- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() 
+                # loss = (1 - args.d_lam) * criterion(outc[:, :-1], y[:, :-1]) + args.d_lam * (bceloss(outc[:, -1], torch.zeros_like(y.max(1)[1]).float())
+                #      + bceloss(outa[:, -1], torch.ones_like(y.max(1)[1]).float()))
+                loss = (1 - args.d_lam) * criterion(outc, y) + args.d_lam * criterion(outa, a_label)  #- args.d_lam * torch.minimum(outa[:, -1], torch.tensor(100).cuda()).mean()#*(torch.minimum(outa[:, -1] - torch.max(outa[:, :-1], dim=1)[0].detach(), torch.tensor(10).cuda())).mean() 
                 # loss = (1 - args.d_lam) * torch.maximum(outc[:, -1] - outc[np.arange(bsize), y.max(1)[1]], torch.tensor(-10).cuda()
                 #  ).mean() + args.d_lam * torch.maximum(outa.max(dim=1)[0] - outa[:, -1], torch.tensor(-10).cuda()).mean()
                 model.zero_grad()
@@ -546,15 +546,15 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     # print('sag')
                 d_a = cw_attack(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt, a_lam=args.a_lam, detection=True).detach()
                 outad = model(X + d_a, prompt).detach()
-                acc_c = (outc[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
+                acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()
                 for j in range(y.size(0)):
                     corr_mats[1][y.max(1)[1][j], outa[:, :-1].detach().max(1)[1][j]] += 1
                     corr_mats[0][y.max(1)[1][j], outc[:, :-1].detach().max(1)[1][j]] += 1
                     corr_mats[2][y.max(1)[1][j], outad[:, :-1].detach().max(1)[1][j]] += 1
 
-                acc_a = (outa[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item()#(outa.max(1)[1] == a_label.max(1)[1]).float().mean().item() 
-                acc = (outc[:, -1] <= torch.zeros_like(y.max(1)[1])).float().mean().item()#outad[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()
-                acc_d = (outad[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item()#(outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()
+                acc_a = (outa.max(1)[1] == a_label.max(1)[1]).float().mean().item()#(outa[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item() 
+                acc = (outad[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()#(outc[:, -1] <= torch.zeros_like(y.max(1)[1])).float().mean().item()
+                acc_d = (outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()#(outad[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item()
                 return loss, acc, y, acc_a, acc_d, acc_c
             # elif args.method == 'sep-detect':
 
@@ -571,6 +571,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 model.eval()
 
                 delta.requires_grad = True
+                condition = args.prompted or args.prefixed
                 for _ in range(args.attack_iters):
                     add_noise_mask = torch.ones_like(X)
                     grid_num_axis = int(args.resize / args.patch)
@@ -586,8 +587,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             c * args.patch:(c + 1) * args.patch] = 0
                     if args.PRM:
                         delta = delta * add_noise_mask
-                    loss_kl = criterion_kl(F.log_softmax(model(X + delta, prompt) if args.prompted else model(X + delta), dim=1),
-                                           F.softmax(model(X, prompt) if args.prompted else model(X), dim=1))
+                    loss_kl = criterion_kl(F.log_softmax(model(X + delta, prompt) if condition else model(X + delta), dim=1),
+                                           F.softmax(model(X, prompt) if condition else model(X), dim=1))
                     grad = torch.autograd.grad(loss_kl, [delta])[0]
                     # prompt = prompt.detach()
                     delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
@@ -598,25 +599,25 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 # model.train()
                 delta = delta.detach()
                 # x_adv = Variable(X+delta, requires_grad=False)
-                output = logits = model(X, prompt) if args.prompted else model(X)
+                output = logits = model(X, prompt) if condition else model(X)
                 output = output.detach()
                 # logits = logits.detach()
                 acc_c = (output.max(1)[1] == y).float().mean().item()
                 loss_natural = F.cross_entropy(logits, y)
-                loss_robust = (1.0 / batch_size) * criterion_kl(F.log_softmax(model(X+delta, prompt) if args.prompted else model(X+delta), dim=1),
-                                                                F.softmax(model(X, prompt) if args.prompted else model(X), dim=1))
+                loss_robust = (1.0 / batch_size) * criterion_kl(F.log_softmax(model(X+delta, prompt) if condition else model(X+delta), dim=1),
+                                                                F.softmax(model(X, prompt) if condition else model(X), dim=1))
                 loss = loss_natural + beta * loss_robust
                 model.zero_grad()
                 loss.backward()
 
-                dpgd = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt if args.prompted else None).detach()
-                outa = model(X + dpgd, prompt).detach() if args.prompted else model(X + dpgd).detach()
+                dpgd = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt if condition else None).detach()
+                outa = model(X + dpgd, prompt).detach() if condition else model(X + dpgd).detach()
                 acc_a = (outa.detach().max(1)[1] == y).float().mean().item()
                 for j in range(y.size(0)):
                     corr_mats[1][y[j], outa.detach().max(1)[1][j]] += 1
                     corr_mats[0][y[j], output.detach().max(1)[1][j]] += 1
                     
-                return loss, acc_c, y, acc_a, handle_list, acc_c
+                return loss, acc_c, y, acc_a, acc_a, acc_c
             elif args.method == 'MART':
                 X = X.cuda()
                 y = y.cuda()
