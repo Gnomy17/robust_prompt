@@ -144,8 +144,13 @@ if args.prompted or args.prompt_too:
     elif args.optim == 'adam':
         opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
     
-    # if args.method == 'sdetect':
-    #     dprompt = make_prompt(args.prompt_length, 768)
+    if args.method == 'sepdet':
+        dprompt = make_prompt(args.prompt_length, 768, depth=args.prompt_depth)
+        disc = nn.Linear(768, 1).cuda()
+        prms = [dprompt]
+        for p in disc.parameters():
+            prms.append(p)
+        # dopt = torch.optim.Adam(prms, lr=args.lr_max, weight_decay=args.weight_decay)
 elif args.prefixed:
     if args.load:
         prompt = (checkpoint['prompt'])[0]
@@ -232,6 +237,26 @@ def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, 
     return delta
 
 
+def sepdet_atk(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, disc=None, pd=None, pc=None, a_lam=0.5):
+    for zz in range(restarts):
+        delta = torch.zeros_like(X).cuda()
+        for i in range(len(epsilon)):
+            delta[:, i, :, :].uniform_(-epsilon[i][0][0].item(), epsilon[i][0][0].item())
+        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
+        delta.requires_grad = True
+        for _ in range(attack_iters):
+            outc = model(X + delta, pc)
+            _, fsadv = model(X +delta, pd, get_fs=True)
+            sadv = disc(fsadv[:, pd.size(1)])
+            # print(sadv.size(), torch.ones_like(y).float().size())
+            loss = (1 - a_lam) * F.cross_entropy(outc, y) + a_lam * (F.binary_cross_entropy_with_logits(sadv, torch.ones_like(sadv).float()))
+            grad = torch.autograd.grad(loss, delta)[0].detach()
+            delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
+            delta.data = clamp(delta, lower_limit - X, upper_limit - X)
+        delta = delta.detach()
+    return delta
+
+
 def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate,iters=None, prompt=None, target=None, avoid= None, deep=False):
     model.eval()
     epsilon = epsilon_base.cuda()
@@ -242,21 +267,6 @@ def pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, d
         delta.data = clamp(delta, lower_limit - X, upper_limit - X)
     delta.requires_grad = True
     for _ in range(args.attack_iters if iters is None else iters):
-        # patch drop
-        # add_noise_mask = torch.ones_like(X)
-        # grid_num_axis = int(args.resize / args.patch)
-        # max_num_patch = grid_num_axis * grid_num_axis
-        # ids = [i for i in range(max_num_patch)]
-        # random.shuffle(ids)
-        # num_patch = int(max_num_patch * (1 - drop_rate))
-        # if num_patch !=0:
-        #     ids = np.array(ids[:num_patch])
-        #     rows, cols = ids // grid_num_axis, ids % grid_num_axis
-        #     for r, c in zip(rows, cols):
-        #         add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
-        #         c * args.patch:(c + 1) * args.patch] = 0
-        # if args.PRM:
-        #     delta = delta * add_noise_mask
         if prompt is not None:
             if callable(prompt):
                 output = model(X + delta, prompt(X + delta), deep=deep)
@@ -325,13 +335,13 @@ def train_adv(args, model, ds_train, ds_test, logger):
     if args.delta_init == 'previous':
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
     lr_steps = args.epochs * steps_per_epoch
-    def lr_schedule(t):
-        if t< args.epochs-5:
+    def lr_schedule(t, max_ep):
+        if t< max_ep-5:
             return args.lr_max
-        elif t< args.epochs-2:
+        elif t< max_ep -2:
             return args.lr_max*0.1
         else:
-            return args.lr_max * 0.01
+            return args.lr_max* 0.01
     epoch_s = 0 if not args.load else (checkpoint['epoch'])
     if args.load:
         for k in checkpoint:
@@ -356,8 +366,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
         pfvs_a = []
         flabels = []
         ### freeze head weights after warmstart #####
-        # if epoch == args.ws and args.method == 'AT':
-        #     opt = torch.optim.SGD([prompt], lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
+        if epoch == args.ws and args.method == 'sepdet':
+            logger.info('Switching to sepdet')
+            opt = torch.optim.SGD(prms, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 
         def train_step(X, y, t, mixup_fn, hist_a, hist_c, corr_mats):
             global prompt, done_prompt, opt
@@ -410,8 +421,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.prompted or args.prompt_too:
                     output = model(X, prompt, deep=args.deep_prompt)
                     # print('sag')
-                elif args.blocked:
-                    output = model(X, prompt(X))
                 else:
                     output = model(X)
 
@@ -556,7 +565,27 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc = (outad[:, :-1].max(1)[1] == y.max(1)[1]).float().mean().item()#(outc[:, -1] <= torch.zeros_like(y.max(1)[1])).float().mean().item()
                 acc_d = (outad.max(1)[1] == a_label.max(1)[1]).float().mean().item()#(outad[:, -1] > torch.zeros_like(y.max(1)[1])).float().mean().item()
                 return loss, acc, y, acc_a, acc_d, acc_c
-            # elif args.method == 'sep-detect':
+            elif args.method == 'sepdet' and epoch >= args.ws:
+                X = X.cuda()
+                y = y.cuda()
+                bsize = X.size(0)
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+
+                y = torch.cat((y, torch.zeros(y.size(0), 1).cuda()), dim=1)
+                delta = sepdet_atk(model, X, y.max(1)[1], epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, disc=disc, pd=dprompt, pc=prompt, a_lam=args.a_lam).detach()
+                noise = sepdet_atk(model, X, y.max(1)[1], epsilon_base, alpha, 0, 1, lower_limit, upper_limit, disc=disc, pd=dprompt, pc=prompt, a_lam=args.a_lam).detach()
+                X_adv = X + delta
+                _, fsadv = model(X_adv, dprompt, get_fs=True)
+                sadv = disc(fsadv[:, dprompt.size(1)])
+                _, fsc = model(X + noise, dprompt, get_fs=True)
+                sc = disc(fsc[:, dprompt.size(1)])
+                loss = 0.5 * bceloss(sc, torch.zeros_like(sc).float()) + 0.5 * bceloss(sadv, torch.ones_like(sadv).float())
+                loss.backward()
+                acc_c = (sc < torch.zeros_like(y.max(1)[1])).float().mean().item()
+                acc_a = (sadv > torch.zeros_like(y.max(1)[1])).float().mean().item()
+
+                return loss, acc_c, y, acc_a, acc_a, acc_c
 
             elif args.method == 'TRADES':
                 X = X.cuda()
@@ -739,13 +768,16 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     opt.param_groups[0]['lr'],
                         train_loss / train_n, train_acc / train_n, train_clean/ train_n, train_prompted/ train_n, train_adetect/ train_n
                 ))
-            lr = lr_schedule(epoch_now)
+            lr = lr_schedule(epoch_now, args.ws) if (args.ws and epoch_now < args.ws) else lr_schedule(epoch_now, args.epochs) 
             opt.param_groups[0].update(lr=lr)
         
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
 
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
-            torch.save({'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': [prompt]}, path)
+            to_save = {'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': [prompt]}
+            if args.method == 'sepdet':
+                to_save['detp'] = [dprompt, disc]
+            torch.save(to_save, path)
             logger.info('Checkpoint saved to {}'.format(path))
 
 
