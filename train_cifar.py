@@ -418,7 +418,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 y = y.cuda()
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
-                if args.prompted or args.prompt_too:
+                if args.prompted or args.prefixed:
                     output = model(X, prompt, deep=args.deep_prompt)
                     # print('sag')
                 else:
