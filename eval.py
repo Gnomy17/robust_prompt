@@ -96,7 +96,7 @@ base_m.eval()
 # cprompt = chkpnt['prompt'][0]
 # print(rprompt.size(), cprompt.size(), rpcprompt.size())
 # print(ssprompt.size())
-chkpnt = torch.load(r'./sepdetnoise_0.5_0.5_cifar_vit_small_patch16_224_sepdet_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/checkpoint_40')
+chkpnt = torch.load(r'./sepdet_noise/checkpoint_40')
 base_m.load_state_dict(chkpnt['state_dict'])
 prompt = chkpnt['prompt'][0]
 # print(chkpnt.keys())
