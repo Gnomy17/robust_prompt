@@ -335,13 +335,16 @@ def train_adv(args, model, ds_train, ds_test, logger):
     if args.delta_init == 'previous':
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
     lr_steps = args.epochs * steps_per_epoch
-    def lr_schedule(t, max_ep):
-        if t< max_ep-5:
-            return args.lr_max
-        elif t< max_ep -2:
-            return args.lr_max*0.1
-        else:
-            return args.lr_max* 0.01
+    if args.lr_schedule == 'cyclic':
+        lr_schedule = lambda t, max_ep: np.interp([t], [0, max_ep // 2, max_ep], [0, args.lr_max, 0])[0]
+    elif args.lr_schedule == 'drops':
+        def lr_schedule(t, max_ep):
+            if t< max_ep-5:
+                return args.lr_max
+            elif t< max_ep -2:
+                return args.lr_max*0.1
+            else:
+                return args.lr_max* 0.01
     epoch_s = 0 if not args.load else (checkpoint['epoch'])
     if args.load:
         for k in checkpoint:
@@ -602,20 +605,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 delta.requires_grad = True
                 condition = args.prompted or args.prefixed
                 for _ in range(args.attack_iters):
-                    add_noise_mask = torch.ones_like(X)
-                    grid_num_axis = int(args.resize / args.patch)
-                    max_num_patch = grid_num_axis * grid_num_axis
-                    ids = [i for i in range(max_num_patch)]
-                    random.shuffle(ids)
-                    num_patch = int(max_num_patch * (1 - drop_rate))
-                    if num_patch != 0:
-                        ids = np.array(ids[:num_patch])
-                        rows, cols = ids // grid_num_axis, ids % grid_num_axis
-                        for r, c in zip(rows, cols):
-                            add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
-                            c * args.patch:(c + 1) * args.patch] = 0
-                    if args.PRM:
-                        delta = delta * add_noise_mask
                     loss_kl = criterion_kl(F.log_softmax(model(X + delta, prompt) if condition else model(X + delta), dim=1),
                                            F.softmax(model(X, prompt) if condition else model(X), dim=1))
                     grad = torch.autograd.grad(loss_kl, [delta])[0]

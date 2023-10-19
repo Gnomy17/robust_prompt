@@ -32,6 +32,7 @@ def get_args():
     parser.add_argument('--prefixed', action='store_true')
     parser.add_argument('--deep-prompt', action='store_true')
     parser.add_argument('--prompt-depth', type=int, default=1)
+    parser.add_argument('--lr-schedule', type=str, default='cyclic', choices=['cyclic', 'drops'])
     
     parser.add_argument('--block_type', type=str, default="cnn", choices=["attention", "cnn"])
     parser.add_argument('--disjoint_prompts', action='store_true')
