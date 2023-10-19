@@ -54,7 +54,7 @@ def sepdet_atk(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
         delta.requires_grad = True
         for _ in range(attack_iters):
             outc = model(X + delta, pc)
-            _, fsadv = model(X +delta, pd, get_fs=True)
+            fsadv = model(X +delta, pd, get_fs=True)[1]
             sadv = disc(fsadv[:, pd.size(1)])
             # print(sadv.size(), torch.ones_like(y).float().size())
             loss = (1 - a_lam) * F.cross_entropy(outc, y) + a_lam * (F.binary_cross_entropy_with_logits(sadv, torch.ones_like(sadv).float()))
@@ -96,7 +96,7 @@ base_m.eval()
 # cprompt = chkpnt['prompt'][0]
 # print(rprompt.size(), cprompt.size(), rpcprompt.size())
 # print(ssprompt.size())
-chkpnt = torch.load(r'./sepdetnoise_0.5_0.5_cifar_vit_small_patch16_224_sepdet_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/checkpoint_20')
+chkpnt = torch.load(r'./sepdetnoise_0.5_0.5_cifar_vit_small_patch16_224_sepdet_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/checkpoint_40')
 base_m.load_state_dict(chkpnt['state_dict'])
 prompt = chkpnt['prompt'][0]
 # print(chkpnt.keys())
@@ -123,6 +123,9 @@ thresh = 0.7
 for step, (X, y) in enumerate(test_loader):
     X, y = X.cuda(), y.cuda()
     num_samps += y.size(0)
+    ad = sepdet_atk(base_m, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, pc=prompt, pd=dprompt,a_lam=0.5).detach()
+    fsad = base_m(X + ad, dprompt, get_fs=True)[1].detach()
+    sad = disc(fsad[:, dprompt.size(1)]).detach()
     noise = attack_pgd(base_m, X, y, epsilon, alpha, 0, restarts, lower_limit, upper_limit, prompt=prompt).detach()
     outc = base_m(X+noise, prompt).detach()
     # p_labels = F.one_hot(outc.max(1)[1], 10).float()
@@ -132,12 +135,11 @@ for step, (X, y) in enumerate(test_loader):
     sa = disc(fsa[:, dprompt.size(1)]).detach()
     sc = disc(fca[:, dprompt.size(1)]).detach()
     # print(sc.size())
-    # ad = attack_cw(base_m, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=prompt, a_lam=0.5, detection=True).detach()
+    
     # d = attack_pgd(base_m, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=rprompt).detach()
-    # outad = base_m(X + ad, prompt).detach()
     
     dacc += (F.sigmoid(sa).squeeze() > (torch.zeros_like(y) + thresh)).float().sum()
-    adacc += 0#(F.sigmoid(outad[:,-1]) > torch.zeros_like(y) + thresh).float().sum()
+    adacc += (F.sigmoid(fsad).squeeze() > torch.zeros_like(y) + thresh).float().sum()
     acc_a += 0#(outad[:, :-1].max(1)[1] == y).float().sum()
     acc_c += (outc.max(1)[1] == y).float().sum()
     fp += (F.sigmoid(sc).squeeze() > (torch.zeros_like(y) + thresh)).float().sum()
