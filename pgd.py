@@ -53,7 +53,7 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit,
                 loss = F.cross_entropy(output, y)
             elif tar is not None:
                 loss = -F.cross_entropy(output, tar)
-            if a_lam != 0:
+            if a_lam > 0:
                 a_label = torch.ones_like(y) * (output.size(1) - 1)
                 loss *= (1- a_lam)
                 loss -= a_lam * (output[:, -1]).mean()#F.cross_entropy(output, a_label)
