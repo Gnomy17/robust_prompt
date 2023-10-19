@@ -96,7 +96,7 @@ base_m.eval()
 # cprompt = chkpnt['prompt'][0]
 # print(rprompt.size(), cprompt.size(), rpcprompt.size())
 # print(ssprompt.size())
-chkpnt = torch.load(r'./sepdet_noise/checkpoint_40')
+chkpnt = torch.load(r'./sepdetnoise_0.5_0.5_cifar_vit_small_patch16_224_sepdet_warmup/seed0/weight_decay_0.000100/drop_rate_1.000000/nw_10.000000/checkpoint_40')
 base_m.load_state_dict(chkpnt['state_dict'])
 prompt = chkpnt['prompt'][0]
 # print(chkpnt.keys())
@@ -136,11 +136,12 @@ for step, (X, y) in enumerate(test_loader):
     ad = sepdet_atk(base_m, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, disc=disc, pc=prompt, pd=dprompt,a_lam=0.5).detach()
     fsad = base_m(X + ad, dprompt, get_fs=True)[1].detach()
     sad = disc(fsad[:, dprompt.size(1)]).detach()
+    outad = base_m(X+ad, prompt).detach()
     # d = attack_pgd(base_m, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, prompt=rprompt).detach()
     
     dacc += (F.sigmoid(sa).squeeze() > (torch.zeros_like(y) + thresh)).float().sum()
     adacc += (F.sigmoid(sad).squeeze() > (torch.zeros_like(y) + thresh)).float().sum()
-    acc_a += 0#(outad[:, :-1].max(1)[1] == y).float().sum()
+    acc_a += (outad.max(1)[1] == y).float().sum()
     acc_c += (outc.max(1)[1] == y).float().sum()
     fp += (F.sigmoid(sc).squeeze() > (torch.zeros_like(y) + thresh)).float().sum()
     # print(fp)
