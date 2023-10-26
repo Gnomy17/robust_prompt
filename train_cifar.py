@@ -467,24 +467,24 @@ def train_adv(args, model, ds_train, ds_test, logger):
                             corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
                     return loss, acc, y, acc_c, acc, acc_c if args.full_white else acc2
                 else:
-                    delta = pgd_attack(model_copy, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                    delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
                     output = model(X_adv)
                     loss = criterion(output, y)
                     loss.backward()
-                    labs = (y.max(1)[1] + 1)% 10 #
-                    labs = F.one_hot(labs, 10).float() 
-                    d2 = pgd_attack(model_copy, X, labs, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
-                    out2 = model(X + d2).detach()
+                    # labs = (y.max(1)[1] + 1)% 10 #
+                    # labs = F.one_hot(labs, 10).float() 
+                    # d2 = pgd_attack(model_copy, X, labs, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
+                    # out2 = model(X + d2).detach()
                     outc = model(X).detach()
-                    acc2 = (out2.max(1)[1] == labs.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
+                    # acc2 = (out2.max(1)[1] == labs.max(1)[1]).float().mean().item()#(thingy * labs).sum(1).mean().item()#(out2.max(1)[1] == labs.max(1)[1]).float().mean().item()
                     acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
                     acc_c = (outc.max(1)[1] == y.max(1)[1]).float().mean().item()#cosim(fw[:, args.prompt_length, :], fb[:, args.prompt_length, :]).detach().mean().item()
                     for j in range(y.size(0)):
                         corr_mats[1][y.max(1)[1][j], output.detach().max(1)[1][j]] += 1
                         corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                        corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
-                    return loss, acc, y, acc2, handle_list, acc_c
+                        # corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
+                    return loss, acc, y, acc, handle_list, acc_c
                 # output = model(X, prompt)
             elif args.method == 'voting':
                 ####### VOTING CAN BE USED FOR ENSMBLING LATER ###########
@@ -774,6 +774,8 @@ train_adv(args, model, train_loader, test_loader, logger)
 
 
 logger.info(args.out_dir)
+if not args.prompted and not args.prefixed:
+    prompt = None
 evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
 
