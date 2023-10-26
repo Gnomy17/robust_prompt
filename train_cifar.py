@@ -789,7 +789,7 @@ logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
 
 args.eval_iters = 20
 args.alpha = 2
-cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt, a_lam=args.a_lam, detection=True)
+cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt, a_lam=0)
 logger.info('CW20: loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
 
 args.eval_iters = 50
