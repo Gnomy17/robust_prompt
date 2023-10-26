@@ -484,7 +484,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         corr_mats[1][y.max(1)[1][j], output.detach().max(1)[1][j]] += 1
                         corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
                         # corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
-                    return loss, acc, y, acc, handle_list, acc_c
+                    return loss, acc, y, acc_c, acc, acc_c
                 # output = model(X, prompt)
             elif args.method == 'voting':
                 ####### VOTING CAN BE USED FOR ENSMBLING LATER ###########
