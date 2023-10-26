@@ -184,8 +184,8 @@ elif args.method in ['voting']:
         o  = torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
         opts.append(o)
 else:
-    model_copy = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
-    model_copy = nn.DataParallel(model_copy)
+    # model_copy = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
+    # model_copy = nn.DataParallel(model_copy)
     if args.optim == 'sgd':
         opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
     elif args.optim == 'adam':
