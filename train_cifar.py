@@ -123,7 +123,7 @@ if args.load:
     model.load_state_dict(checkpoint['state_dict'])
 
 
-if args.prompted or args.prompt_too:
+if args.prompted:
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
@@ -132,10 +132,7 @@ if args.prompted or args.prompt_too:
     prompts = [prompt]
     params = [prompt]
 
-    if args.prompt_too:
-        for p in model.parameters():
-            params.append(p)
-    else:
+    if not args.freeze_head:
         for p in model.module.head.parameters():
             params.append(p)
         
@@ -159,9 +156,9 @@ elif args.prefixed:
 
     prompts = [prompt]
     params = [prompt]
-
-    for p in model.module.head.parameters():
-        params.append(p)
+    if not args.freeze_head:
+        for p in model.module.head.parameters():
+            params.append(p)
     
     if args.optim == 'sgd':
         opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
