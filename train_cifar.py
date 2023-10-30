@@ -347,6 +347,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         for k in checkpoint:
             checkpoint[k] = None
 
+    past_p = None
     for epoch in tqdm.tqdm(range(epoch_s + 1, args.epochs + 1)):
         if args.just_eval:
             break
@@ -365,6 +366,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
         pfvs = []
         pfvs_a = []
         flabels = []
+
+        past_p = prompt.clone().detach()
         ### freeze head weights after warmstart #####
         if epoch == args.ws and args.method == 'sepdet':
             logger.info('Switching to sepdet')
@@ -437,6 +440,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if args.prompted or args.prefixed:
                     if args.full_white:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, deep=args.deep_prompt).detach()
+                        if args.past:
+                            d2 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=past_p, deep=args.deep_prompt).detach()
+                            out2 = model(X + d2, prompt).detach()
+                            acc2 = (out2.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
                         delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach() #prompt=prompt, avoid=labs).detach()
                         t = F.one_hot((y.max(1)[1] + 1) % 10, 10).float()
@@ -459,9 +466,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     for j in range(y.size(0)):
                         corr_mats[1][y.max(1)[1][j], out.detach().max(1)[1][j]] += 1
                         corr_mats[0][y.max(1)[1][j], outc.detach().max(1)[1][j]] += 1
-                        if not args.full_white:
+                        if not args.full_white or args.past:
                             corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
-                    return loss, acc, y, acc_c, acc, acc_c if args.full_white else acc2
+                        
+                    return loss, acc, y, acc2 if args.past else acc_c, acc, acc_c
                 else:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
