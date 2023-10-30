@@ -426,7 +426,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     # print('sag')
                 else:
                     output = model(X)
-
                 loss = criterion(output, y)
                 loss.backward()
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
