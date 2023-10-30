@@ -423,7 +423,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     # print('sag')
                 else:
                     output = model(X)
-
                 loss = criterion(output, y)
                 loss.backward()
                 acc = (output.max(1)[1] == y.max(1)[1]).float().mean().item()
@@ -760,6 +759,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
 
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
+            if not args.prompted and not args.prefixed:
+                prompt = None
             to_save = {'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': [prompt]}
             if args.method == 'sepdet':
                 to_save['detp'] = [dprompt, disc]
