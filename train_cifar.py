@@ -76,6 +76,11 @@ elif args.model == "vit_small_robust_cifar":
     chkpnt = torch.load(r'./finetuned_model/robust_cifar_vit')
     model.load_state_dict(chkpnt['state_dict'])
     chkpnt['state_dict'] = 0
+elif args.model == "vit_large_patch16_224_in21k":
+    from model_for_cifar import vit_large_patch16_224_in21k
+    model = vit_large_patch16_224_in21k(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
+    model = nn.DataParallel(model)
+
 elif args.model == 'vit_finetuned_cifar':
     #### TODO ####
     chkpnt = torch.load(r'./finetuned_model/finetuned_vit')
@@ -127,7 +132,7 @@ if args.prompted:
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
-        prompt = make_prompt(args.prompt_length, 768, depth=args.prompt_depth)
+        prompt = make_prompt(args.prompt_length, model.module.embed_dim, depth=args.prompt_depth)
 
     prompts = [prompt]
     params = [prompt]
@@ -152,7 +157,7 @@ elif args.prefixed:
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
-        prompt = make_prompt(args.prompt_length, 768, depth=model.module.depth)
+        prompt = make_prompt(args.prompt_length, model.module.embed_dim, depth=model.module.depth)
 
     prompts = [prompt]
     params = [prompt]
