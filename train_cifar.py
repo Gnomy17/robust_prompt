@@ -469,7 +469,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                         if not args.full_white or args.past:
                             corr_mats[2][y.max(1)[1][j], out2.detach().max(1)[1][j]] += 1
                         
-                    return loss, acc, y, acc2 if args.past else acc_c, acc, acc_c
+                    return loss, acc, y, acc2 if (args.past or not args.full_white) else acc_c, acc, acc_c
                 else:
                     delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate).detach()
                     X_adv = X + delta
