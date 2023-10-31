@@ -140,12 +140,14 @@ if args.prompted:
     if not args.freeze_head:
         for p in model.module.head.parameters():
             params.append(p)
-        
+    if args.train_patch:
+        for p in model.module.patch_embed.parameters():
+            params.append(p)
     if args.optim == 'sgd':
         opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
     elif args.optim == 'adam':
         opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
-    
+        
     if args.method == 'sepdet':
         dprompt = make_prompt(args.prompt_length, 768, depth=args.prompt_depth)
         disc = nn.Linear(768, 1).cuda()
@@ -158,9 +160,12 @@ elif args.prefixed:
         prompt = (checkpoint['prompt'])[0]
     else:
         prompt = make_prompt(args.prompt_length, model.module.embed_dim, depth=model.module.depth)
-
+    
     prompts = [prompt]
     params = [prompt]
+    if args.train_patch:
+        for p in model.module.patch_embed.parameters():
+            params.append(p)
     if not args.freeze_head:
         for p in model.module.head.parameters():
             params.append(p)
