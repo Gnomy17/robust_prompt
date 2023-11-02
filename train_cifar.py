@@ -191,6 +191,7 @@ elif args.method in ['voting']:
         o  = torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
         opts.append(o)
 else:
+    prompt = None
     # model_copy = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     # model_copy = nn.DataParallel(model_copy)
     if args.optim == 'sgd':
@@ -333,6 +334,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
     criterion = nn.CrossEntropyLoss()
     bceloss = nn.BCEWithLogitsLoss()
+    mseloss = nn.MSELoss()
     steps_per_epoch = len(train_loader)
     
     
@@ -650,56 +652,30 @@ def train_adv(args, model, ds_train, ds_test, logger):
                     corr_mats[0][y[j], output.detach().max(1)[1][j]] += 1
                     
                 return loss, acc_c, y, acc_a, acc_a, acc_c
-            elif args.method == 'MART':
+            elif args.method == 'ss':
                 X = X.cuda()
                 y = y.cuda()
-                beta = args.beta
-                kl = nn.KLDivLoss(reduction='none')
-                model.eval()
-                batch_size = len(X)
-                epsilon = epsilon_base.cuda()
-                delta = torch.zeros_like(X).cuda()
-                if args.delta_init == 'random':
-                    delta = 0.001 * torch.randn(X.shape).cuda()
-                    delta.data = clamp(delta, lower_limit - X, upper_limit - X)
-                delta.requires_grad = True
-                for _ in range(args.attack_iters):
-                    add_noise_mask = torch.ones_like(X)
-                    grid_num_axis = int(args.resize / args.patch)
-                    max_num_patch = grid_num_axis * grid_num_axis
-                    ids = [i for i in range(max_num_patch)]
-                    random.shuffle(ids)
-                    num_patch = int(max_num_patch * (1 - drop_rate))
-                    if num_patch != 0:
-                        ids = np.array(ids[:num_patch])
-                        rows, cols = ids // grid_num_axis, ids % grid_num_axis
-                        for r, c in zip(rows, cols):
-                            add_noise_mask[:, :, r * args.patch:(r + 1) * args.patch,
-                            c * args.patch:(c + 1) * args.patch] = 0
-                    if args.PRM:
-                        delta = delta * add_noise_mask
-                    output = model(X + delta)
-                    loss = F.cross_entropy(output, y)
-                    grad = torch.autograd.grad(loss, delta)[0].detach()
-                    delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
-                    delta.data = clamp(delta, lower_limit - X, upper_limit - X)
-                delta = delta.detach()
-                if len(handle_list) != 0:
-                    for handle in handle_list:
-                        handle.remove()
-                model.train()
-                x_adv = Variable(X+delta,requires_grad=False)
-                logits = model(X)
-                logits_adv = model(x_adv)
-                adv_probs = F.softmax(logits_adv, dim=1)
-                tmp1 = torch.argsort(adv_probs, dim=1)[:, -2:]
-                new_y = torch.where(tmp1[:, -1] == y, tmp1[:, -2], tmp1[:, -1])
-                loss_adv = F.cross_entropy(logits_adv, y) + F.nll_loss(torch.log(1.0001 - adv_probs + 1e-12), new_y)
-                nat_probs = F.softmax(logits, dim=1)
-                true_probs = torch.gather(nat_probs, 1, (y.unsqueeze(1)).long()).squeeze()
-                loss_robust = (1.0 / batch_size) * torch.sum(
-                    torch.sum(kl(torch.log(adv_probs + 1e-12), nat_probs), dim=1) * (1.0000001 - true_probs))
-                loss = loss_adv + float(beta) * loss_robust
+                if mixup_fn is not None:
+                    X, y = mixup_fn(X, y)
+                
+
+                outc, phic = model(X, prompt, get_fs=True)
+                delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
+                outa, phia = model(X + delta, prompt, get_fs=True)
+                outa = outa.detach()
+                loss_ce = criterion(outc, y)
+                loss_fs = mseloss(phic, phia)
+                loss = loss_ce + beta * loss_fs
+                loss.backward()
+
+                acc_c = (outc.detach().max(1)[1] == y).float().mean().item()
+                acc_a = (outa.detach().max(1)[1] == y).float().mean().item()
+                for j in range(y.size(0)):
+                    corr_mats[1][y[j], outa.detach().max(1)[1][j]] += 1
+                    corr_mats[0][y[j], outc.detach().max(1)[1][j]] += 1
+                    
+                return loss, acc_c, y, acc_a, acc_a, acc_c
+                
             else:
                 raise ValueError(args.method)
             opt.zero_grad()
