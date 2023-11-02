@@ -663,7 +663,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa, phia = model(X + delta, prompt, get_fs=True)
                 outa = outa.detach()
                 loss_ce = criterion(outc, y)
-                loss_fs = mseloss(phic[:, args.prompt_length], phia[:, args.prompt_length])
+                loss_fs = mseloss(phic[:, args.prompt_length].detach(), phia[:, args.prompt_length])
                 loss = loss_ce + args.beta * loss_fs
                 loss.backward()
 
