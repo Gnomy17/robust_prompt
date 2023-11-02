@@ -665,7 +665,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa = outa.detach()
                 loss_ce = criterion(outc, y)
                 loss_fs = mseloss(phic, phia)
-                loss = loss_ce + beta * loss_fs
+                loss = loss_ce + args.beta * loss_fs
                 loss.backward()
 
                 acc_c = (outc.detach().max(1)[1] == y).float().mean().item()
