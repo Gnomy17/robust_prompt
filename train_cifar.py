@@ -77,7 +77,7 @@ elif args.model == "vit_small_robust_cifar":
     model.load_state_dict(chkpnt['state_dict'])
     chkpnt['state_dict'] = 0
 elif args.model == "vit_large_patch16_224_in21k":
-    from model_for_cifar import vit_large_patch16_224_in21k
+    from model_for_cifar.vit import vit_large_patch16_224_in21k
     model = vit_large_patch16_224_in21k(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     model = nn.DataParallel(model)
 
