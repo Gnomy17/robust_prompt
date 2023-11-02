@@ -640,7 +640,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 acc_c = (output.max(1)[1] == y).float().mean().item()
                 loss_natural = F.cross_entropy(logits, y)
                 loss_robust = (1.0 / batch_size) * criterion_kl(F.log_softmax(model(X+delta, prompt) if condition else model(X+delta), dim=1),
-                                                                F.softmax(model(X, prompt) if condition else model(X), dim=1))
+                                                                F.softmax(logits, dim=1))
                 loss = loss_natural + beta * loss_robust
                 model.zero_grad()
                 loss.backward()
@@ -663,7 +663,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa, phia = model(X + delta, prompt, get_fs=True)
                 outa = outa.detach()
                 loss_ce = criterion(outc, y)
-                loss_fs = mseloss(phic[:, args.prompt_length].detach(), phia[:, args.prompt_length])
+                loss_fs = mseloss(phic[:, args.prompt_length], phia[:, args.prompt_length])
                 loss = loss_ce + args.beta * loss_fs
                 loss.backward()
 
