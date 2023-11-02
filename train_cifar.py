@@ -192,6 +192,7 @@ elif args.method in ['voting']:
         opts.append(o)
 else:
     prompt = None
+    args.prompt_length = 0
     # model_copy = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
     # model_copy = nn.DataParallel(model_copy)
     if args.optim == 'sgd':
@@ -664,7 +665,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 outa, phia = model(X + delta, prompt, get_fs=True)
                 outa = outa.detach()
                 loss_ce = criterion(outc, y)
-                loss_fs = mseloss(phic, phia)
+                loss_fs = mseloss(phic[:, args.prompt_length], phia[:, args.prompt_length])
                 loss = loss_ce + args.beta * loss_fs
                 loss.backward()
 
