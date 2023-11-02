@@ -656,8 +656,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
             elif args.method == 'ss':
                 X = X.cuda()
                 y = y.cuda()
-                if mixup_fn is not None:
-                    X, y = mixup_fn(X, y)
                 
 
                 outc, phic = model(X, prompt, get_fs=True)
