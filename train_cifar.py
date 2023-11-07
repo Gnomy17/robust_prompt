@@ -379,8 +379,8 @@ def train_adv(args, model, ds_train, ds_test, logger):
         pfvs = []
         pfvs_a = []
         flabels = []
-
-        past_p = prompt.clone().detach()
+        if prompt is not None:
+            past_p = prompt.clone().detach()
         ### freeze head weights after warmstart #####
         if epoch == args.ws and args.method == 'sepdet':
             logger.info('Switching to sepdet')
