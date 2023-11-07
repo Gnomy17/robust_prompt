@@ -346,7 +346,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
     lr_steps = args.epochs * steps_per_epoch
     if args.lr_schedule == 'cyclic':
-        lr_schedule = lambda t, max_ep: np.interp([t], [0, max_ep // 2, max_ep], [0, args.lr_max, 0])[0]
+        lr_schedule = lambda t, max_ep: np.interp([t], [0, max_ep // 2, max_ep], [args.lr_min, args.lr_max, args.lr_min])[0]
     elif args.lr_schedule == 'drops':
         def lr_schedule(t, max_ep):
             if t< max_ep-5:
