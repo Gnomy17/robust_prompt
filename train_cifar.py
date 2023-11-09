@@ -38,8 +38,8 @@ if args.scratch:
 #     args.out_dir = args.out_dir + "_load"
 
 
-args.out_dir = args.out_dir + "/weight_decay_{:.6f}/".format(
-        args.weight_decay)+ "drop_rate_{:.6f}/".format(args.drop_rate)+"nw_{:.6f}/".format(args.n_w)
+args.out_dir = args.out_dir #+ "/weight_decay_{:.6f}/".format(
+        # args.weight_decay)+ "drop_rate_{:.6f}/".format(args.drop_rate)+"nw_{:.6f}/".format(args.n_w)
 
 
 print(args.out_dir)
@@ -190,6 +190,17 @@ elif args.method in ['voting']:
     # print(args.num_prompts)
         o  = torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
         opts.append(o)
+elif args.only_pe:
+    prompt = None
+    args.prompt_length = 0
+    params = [p for p in model.module.patch_embed.parameters()]
+    for p in model.module.head.parameters():
+        params.append(p)
+    if not args.freeze_head:
+        for p in model.module.head.parameters():
+            params.append(p)
+    if args.optim == 'sgd':
+        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
 else:
     prompt = None
     args.prompt_length = 0
@@ -769,8 +780,7 @@ if not args.prompted and not args.prefixed:
     prompt = None
 evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
 
-
-chkpnt = None
+# chkpnt = None
 args.eval_iters = 10
 args.alpha = 2
 args.eval_restarts = 1
@@ -783,13 +793,13 @@ args.alpha = 2
 cw_loss, cw_acc = evaluate_CW(args, model, test_loader, prompt=prompt, a_lam=0)
 logger.info('CW20: loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
 
-args.eval_iters = 50
-args.alpha = 2/5
-args.eval_restarts = 10
-pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
-logger.info('PGD50-10: loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
+# args.eval_iters = 50
+# args.alpha = 2/5
+# args.eval_restarts = 10
+# pgd_loss, pgd_acc = evaluate_pgd(args, model, test_loader, prompt=prompt, a_lam=args.a_lam)
+# logger.info('PGD50-10: loss {:.4f} acc {:.4f}'.format(pgd_loss, pgd_acc))
 
 
-# logger.info('Moving to AA...')
-# at_path = os.path.join(args.out_dir, 'result_'+'_autoattack.txt')
-# evaluate_aa(args, model,at_path, args.AA_batch, prompt if args.prompted else None)
+logger.info('Moving to AA...')
+at_path = os.path.join(args.out_dir, 'result_'+'_autoattack.txt')
+evaluate_aa(args, model, test_loader,at_path, args.AA_batch, prompt=prompt)
