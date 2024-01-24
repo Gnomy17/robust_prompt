@@ -26,7 +26,7 @@ def make_prompt(length, h_dim, init_xavier=True):
     # prompt = nn.Parameter(prompt)
     return prompt
 
-args.out_dir = args.out_dir+"_"+args.dataset+"_"+args.model+"_"+args.method+"_warmup"
+args.out_dir = args.out_dir + args.dataset+"_"+args.model+"_"+args.method
 args.out_dir = args.out_dir +"/seed"+str(args.seed)
 if args.ARD:
     args.out_dir = args.out_dir + "_ARD"

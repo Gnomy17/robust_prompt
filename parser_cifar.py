@@ -59,7 +59,7 @@ def get_args():
     parser.add_argument('--all_classes', action='store_true')
     parser.add_argument('--delta-init', default='random', choices=['zero', 'random', 'previous'],
                         help='Perturbation initialization method')
-    parser.add_argument('--out-dir', '--dir', default='./log', type=str, help='Output directory')
+    parser.add_argument('--out-dir', '--dir', default='./outs/', type=str, help='Output directory')
     parser.add_argument('--model_log', action='store_true')
     parser.add_argument('--seed', default=0, type=int, help='Random seed')
     parser.add_argument('--mixup', type=float, default=0.8,
