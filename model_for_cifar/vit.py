@@ -294,7 +294,7 @@ class VisionTransformer(nn.Module):
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
-
+        self.depth = depth
         if hybrid_backbone is not None:
             self.patch_embed = HybridEmbed(
                 hybrid_backbone, img_size=img_size, in_chans=in_chans, embed_dim=embed_dim)
@@ -364,27 +364,27 @@ class VisionTransformer(nn.Module):
         x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
-        ind = 0
-        if (prompt is not None) and (not deep):
-            ind += prompt.size(1)
-            # print(prompt.size())
-            if prompt.size(0) == 1:
-                batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
-                x = torch.cat((batched_prompt, x), dim=1)  
-            else:
-                x = torch.cat((prompt, x), dim=1)
+        shift = 0 if prompt is None else prompt.size(1)
+
         for i, blk in enumerate(self.blocks):
-            if i == len(self.blocks) - 1 and deep:
-                ind += prompt.size(1)
-                batched_prompt = prompt.expand(x.size(0), prompt.size(1), prompt.size(2))
-                x = torch.cat((batched_prompt, x), dim=1)
+            ind = i if not deep else (i - (self.depth - prompt.size(-1)))
+            if (prompt is not None) and (0 <= ind < prompt.size(-1)):
+                bprompt = prompt[:, :, :, ind].view(1, prompt.size(1), prompt.size(2)).expand(x.size(0), prompt.size(1), prompt.size(2)) 
+                if ind == 0:
+                    x = torch.cat((bprompt, x), dim=1)
+                else:
+                    # bprompt = self.norm(bprompt)
+                    x = torch.cat((bprompt, x[:, prompt.size(1):, :]), dim=1)
+                #### additive prefix tuning ####
+                # else:
+                #     x[:, :prompt.size(1)] += bprompt
             x = blk(x)
         x = self.norm(x)
-        x_cls = x[:, ind]
+        x_cls = x[:, shift]
         x_cls = self.pre_logits(x_cls)
         return x_cls, x
 
-    def forward(self, x, prompt=None, get_fs =False, deep=False):
+    def forward(self, x, prompt=None, get_fs=False, deep=False):
         if prompt is not None:
             x, f = self.forward_features(x, prompt, deep)
         else:

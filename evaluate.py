@@ -25,38 +25,41 @@ def normalize(args, X):
 
 
 
-def evaluate_aa(args, model,log_path,aa_batch=128):
-    if args.dataset=="cifar":
-        test_transform_nonorm = transforms.Compose([
-            transforms.ToTensor()
-        ])
-        test_dataset_nonorm = datasets.CIFAR10(
-        args.data_dir, train=False, transform=test_transform_nonorm, download=True)
-    if args.dataset=="imagenette" or args.dataset=="imagenet" :
-        test_transform_nonorm = transforms.Compose([
-            transforms.Resize([args.resize, args.resize]),
-            transforms.ToTensor()
-        ])
-        test_dataset_nonorm = datasets.ImageFolder(args.data_dir+"val/",test_transform_nonorm)
-    test_loader_nonorm = torch.utils.data.DataLoader(
-        dataset=test_dataset_nonorm,
-        batch_size=args.batch_size,
-        shuffle=False,
-        pin_memory=True,
-        num_workers=4,
-    )
+def evaluate_aa(args, model,test_loader,log_path,aa_batch=128, prompt=None):
+    # if args.dataset=="cifar":
+    #     test_transform_nonorm = transforms.Compose([
+    #         transforms.Resize([args.resize, args.resize]),
+    #         transforms.ToTensor()
+    #     ])
+    #     test_dataset_nonorm = datasets.CIFAR10(
+    #     args.data_dir, train=False, transform=test_transform_nonorm, download=True)
+    # if args.dataset=="imagenette" or args.dataset=="imagenet" :
+    #     test_transform_nonorm = transforms.Compose([
+    #         transforms.Resize([args.resize, args.resize]),
+    #         transforms.ToTensor()
+    #     ])
+    #     test_dataset_nonorm = datasets.ImageFolder(args.data_dir+"val/",test_transform_nonorm)
+    # test_loader_nonorm = torch.utils.data.DataLoader(
+    #     dataset=test_dataset_nonorm,
+    #     batch_size=args.batch_size,
+    #     shuffle=False,
+    #     pin_memory=True,
+    #     num_workers=4,
+    # )
     model.eval()
-    l = [x for (x, y) in test_loader_nonorm]
+    l = [x for (x, y) in test_loader]
     x_test = torch.cat(l, 0)
-    l = [y for (x, y) in test_loader_nonorm]
+    # print(x_test.size())
+    l = [y for (x, y) in test_loader]
     y_test = torch.cat(l, 0)
     class normalize_model():
-        def __init__(self, model):
+        def __init__(self, model, prompt=None):
             self.model_test = model
+            self.prompt = prompt
         def __call__(self, x):
             x_norm = normalize(args, x)
-            return self.model_test(x_norm)
-    new_model = normalize_model(model)
+            return self.model_test(x, self.prompt)
+    new_model = normalize_model(model, prompt)
     epsilon = args.epsilon / 255.
     adversary = AutoAttack(new_model, norm='Linf', eps=epsilon, version='standard',log_path=log_path)
     X_adv = adversary.run_standard_evaluation(x_test, y_test, bs=aa_batch)
