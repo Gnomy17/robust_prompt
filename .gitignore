@@ -2,3 +2,7 @@
 /finetuned_model/
 /saved_chkpnts/
 /outs/
+/wandb/
+/auto_LiRPA/
+/__pycache__/
+/model_for_cifar/__pycache__/

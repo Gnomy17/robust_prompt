@@ -4,6 +4,7 @@ def get_args():
     parser.add_argument('--model', type=str, default='vit_base_patch16_224')
     parser.add_argument('--method', type=str, default='AT',
                         choices=['AT', 'TRADES', 'MART', 'natural', 'ss', 'voting', 'detect', 'sepdet', 'updown'])
+    parser.add_argument('--params', type=str, default='PT', choices=['FT', 'PT', 'DPT', 'P2T'])
     parser.add_argument('--dataset', type=str, default="cifar")
     parser.add_argument('--run-dummy', action='store_true')
     parser.add_argument('--accum-steps', type=int, default=1)
@@ -53,7 +54,7 @@ def get_args():
     parser.add_argument('--eval-restarts', type=int, default=1)
     parser.add_argument('--eval-iters', type=int, default=10)
     parser.add_argument('--buffer-size', type=int, default=640)
-    parser.add_argument('--data-dir', default='./data', type=str)
+    parser.add_argument('--data-dir', default='../../datasets/', type=str)
     parser.add_argument('--epochs', default=40, type=int)
     parser.add_argument('--split-interval', default=2, type=int)
     parser.add_argument('--lr-min', default=0., type=float)
@@ -81,6 +82,7 @@ def get_args():
                         help='Probability of switching to cutmix when both mixup and cutmix enabled')
     parser.add_argument('--mixup-mode', type=str, default='batch',
                         help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
+    parser.add_argument('--name', type=str, default='sample_run')
     args = parser.parse_known_args()[0]
     assert args.batch_size % args.accum_steps == 0
     return args

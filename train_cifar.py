@@ -10,13 +10,19 @@ from parser_cifar import get_args
 from auto_LiRPA.utils import MultiAverageMeter
 from utils import *
 from torch.autograd import Variable
-from pgd import evaluate_pgd,evaluate_CW, CW_loss, ACW_loss
-from evaluate import evaluate_aa
+from attacks import evaluate_pgd,evaluate_CW, CW_loss, ACW_loss
+from evaluate import evaluate_aa, evaluate_natural
 from auto_LiRPA.utils import logger
 import matplotlib.pyplot as plt
 from buffer import Buffer
+import wandb
 # torch.autograd.set_detect_anomaly(True)
 args = get_args()
+wandb.init(
+    project="rpt_cifar",
+    name=args.name,
+    config=args
+)
 joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
 def make_prompt(length, h_dim, depth=1,init_xavier=True):
     prompt = torch.zeros(1, length, h_dim, depth, requires_grad=True)
@@ -26,7 +32,7 @@ def make_prompt(length, h_dim, depth=1,init_xavier=True):
     # prompt = nn.Parameter(prompt)
     return prompt
 
-args.out_dir = args.out_dir + args.dataset+"_"+args.model+"_"+args.method
+args.out_dir = args.out_dir + args.dataset+"_"+args.model+"_"+args.method + "_" +args.name
 args.out_dir = args.out_dir +"/seed"+str(args.seed)
 if args.ARD:
     args.out_dir = args.out_dir + "_ARD"
@@ -127,35 +133,19 @@ if args.load:
     checkpoint = torch.load(args.load_path)
     model.load_state_dict(checkpoint['state_dict'])
 
-
-if args.prompted:
+if args.params in ['PT','DPT']:
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
         prompt = make_prompt(args.prompt_length, model.module.embed_dim, depth=args.prompt_depth)
-
+        if args.params == 'DPT':
+            assert args.prompt_depth == 1
+            unexpaned = prompt
+            prompt = prompt.expand(1, prompt.size(1), prompt.size(2), model.module.depth)
     prompts = [prompt]
-    params = [prompt]
-
-    if not args.freeze_head:
-        for p in model.module.head.parameters():
-            params.append(p)
-    if args.train_patch:
-        for p in model.module.patch_embed.parameters():
-            params.append(p)
-    if args.optim == 'sgd':
-        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
-    elif args.optim == 'adam':
-        opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)
+    params = [unexpaned if args.params == 'DPT' else prompt]
         
-    if args.method == 'sepdet':
-        dprompt = make_prompt(args.prompt_length, 768, depth=args.prompt_depth)
-        disc = nn.Linear(768, 1).cuda()
-        prms = [dprompt]
-        for p in disc.parameters():
-            prms.append(p)
-        # dopt = torch.optim.Adam(prms, lr=args.lr_max, weight_decay=args.weight_decay)
-elif args.prefixed:
+elif args.params == ['P2T']:
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
@@ -163,71 +153,25 @@ elif args.prefixed:
     
     prompts = [prompt]
     params = [prompt]
+if args.params == 'FT'   
+    prompt = None
+    args.prompt_length = 0
+    params = model.parameters()
+else:
     if args.train_patch:
         for p in model.module.patch_embed.parameters():
             params.append(p)
     if not args.freeze_head:
         for p in model.module.head.parameters():
             params.append(p)
-    
-    if args.optim == 'sgd':
-        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
-    
-elif args.method in ['voting']:
-    prompts = []
-    head_params = []
-    opts = []
-    for p in model.module.head.parameters():
-        head_params.append(p)
-    for i in range(args.num_prompts):
-        if args.load:
-            p = (checkpoint['prompts'])[i]
-        else:
-            p = make_prompt(args.prompt_length, 768)
-        prompts.append(p)
-        
-    # print(len(prompts))
-    # print(args.num_prompts)
-        o  = torch.optim.SGD([p] + head_params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-        opts.append(o)
-elif args.only_pe:
-    prompt = None
-    args.prompt_length = 0
-    params = [p for p in model.module.patch_embed.parameters()]
-    for p in model.module.head.parameters():
-        params.append(p)
-    if not args.freeze_head:
-        for p in model.module.head.parameters():
-            params.append(p)
-    if args.optim == 'sgd':
-        opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-else:
-    prompt = None
-    args.prompt_length = 0
-    # model_copy = vit_small_patch16_224(pretrained = (not args.scratch),img_size=crop_size,num_classes =nclasses,patch_size=args.patch, args=args).cuda()
-    # model_copy = nn.DataParallel(model_copy)
-    if args.optim == 'sgd':
-        opt = torch.optim.SGD(model.parameters(), lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay)
-    elif args.optim == 'adam':
-        opt = torch.optim.Adam(model.parameters(), lr = args.lr_max, weight_decay=args.weight_decay)
+if args.optim == 'sgd':
+    opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
+elif args.optim == 'adam':
+    opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)      
 
-def evaluate_natural(args, model, test_loader, verbose=False, prompt=None):
-    model.eval()
-    with torch.no_grad():
-        meter = MultiAverageMeter()
-        test_loss = test_acc = test_n = 0
-        def test_step(step, X_batch, y_batch):
-            X, y = X_batch.cuda(), y_batch.cuda()
-            if prompt is not None:
-                output = model(X, prompt, deep=args.deep_prompt)
-            else:
-                output = model(X)
-            loss = F.cross_entropy(output, y)
-            meter.update('test_loss', loss.item(), y.size(0))
-            meter.update('test_acc', (output.max(1)[1] == y).float().mean(), y.size(0))
-        for step, (X_batch, y_batch) in enumerate(test_loader):
-            test_step(step, X_batch, y_batch)
-        logger.info('Evaluation {}'.format(meter))
+
+
+
 
 
 mu = torch.tensor(cifar10_mean).view(3, 1, 1).cuda()
@@ -236,25 +180,7 @@ std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 upper_limit = ((1 - mu) / std).cuda()
 lower_limit = ((0 - mu) / std).cuda()
 
-def cw_attack(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, opt=None, prompt=None, a_lam=0, detection=False, acw=False):
-    for zz in range(restarts):
-        delta = torch.zeros_like(X).cuda()
-        for i in range(len(epsilon)):
-            delta[:, i, :, :].uniform_(-epsilon[i][0][0].item(), epsilon[i][0][0].item())
-        delta.data = clamp(delta, lower_limit - X, upper_limit - X)
-        delta.requires_grad = True
-        for _ in range(attack_iters):
-            if prompt is not None:
-                output = model(X + delta, prompt, deep=args.deep_prompt)
-            else:
-                output = model(X + delta)
-            loss = CW_loss(output, y, a_lam=a_lam, detection=detection) if not acw else ACW_loss(output, y)
 
-            grad = torch.autograd.grad(loss, delta)[0].detach()
-            delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
-            delta.data = clamp(delta, lower_limit - X, upper_limit - X)
-        delta = delta.detach()
-    return delta
 
 
 def sepdet_atk(model, X, y, epsilon, alpha, attack_iters, restarts, lower_limit, upper_limit, disc=None, pd=None, pc=None, a_lam=0.5):
@@ -463,9 +389,9 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 
                 if args.prompted or args.prefixed:
                     if args.full_white:
-                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt, deep=args.deep_prompt).detach()
+                        delta = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=prompt).detach()
                         if args.past:
-                            d2 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=past_p, deep=args.deep_prompt).detach()
+                            d2 = pgd_attack(model, X, y, epsilon_base, alpha, args, criterion, handle_list, drop_rate, prompt=past_p).detach()
                             out2 = model(X + d2, prompt).detach()
                             acc2 = (out2.max(1)[1] == y.max(1)[1]).float().mean().item()
                     else:
@@ -752,6 +678,15 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 plt.savefig(args.out_dir + "/mat_present_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
                 plt.close()
             if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
+                wandb.config.steps_per_epoch = steps_per_epoch // args.log_interval + 1
+                wandb.log(
+                    {
+                        'loss':train_loss/train_n,
+                        'acc':train_acc/train_n,
+                        'clean acc':train_clean/train_n,
+                        'lr':opt.param_groups[0]['lr']
+                    }
+                )
                 logger.info('Training epoch {} step {}/{}, lr {:.4f} loss {:.4f} adaptive acc {:.4f} clean acc {:.4f} detect acc {:.4f} adetect acc {:.4f}'.format(
                     epoch, step + 1, len(train_loader),
                     opt.param_groups[0]['lr'],
