@@ -68,23 +68,23 @@ def evaluate_aa(args, model,test_loader,log_path,aa_batch=128, prompt=None):
     X_adv = adversary.run_standard_evaluation(x_test, y_test, bs=aa_batch)
 
 
-def evaluate_natural(args, model, test_loader, verbose=False, prompt=None):
+def evaluate_natural(args, model, test_loader, logger, prompt=None):
     model.eval()
     with torch.no_grad():
-        meter = MultiAverageMeter()
         test_loss = test_acc = test_n = 0
         def test_step(step, X_batch, y_batch):
             X, y = X_batch.cuda(), y_batch.cuda()
             if prompt is not None:
-                output = model(X, prompt, deep=args.deep_prompt)
+                output = model(X, prompt)
             else:
                 output = model(X)
             loss = F.cross_entropy(output, y)
-            meter.update('test_loss', loss.item(), y.size(0))
-            meter.update('test_acc', (output.max(1)[1] == y).float().mean(), y.size(0))
+            test_loss += loss.item() * y.size(0)
+            test_acc += (output.max(1)[1] == y).float().mean() * y.size(0)
+            test_n += y.size(0)
         for step, (X_batch, y_batch) in enumerate(test_loader):
             test_step(step, X_batch, y_batch)
-        logger.info('Evaluation {}'.format(meter))
+        logger.info('Evaluation Natural: loss: {.4f} acc: {.4f}'.format(test_loss/test_n, test_acc/test_n))
 
 def evaluate_pgd(args, model, test_loader, eval_steps=None, prompt=None, a_lam=0):
     attack_iters = args.eval_iters # 50

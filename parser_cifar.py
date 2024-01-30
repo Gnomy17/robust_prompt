@@ -29,19 +29,14 @@ def get_args():
     parser.add_argument('--ARD', action='store_true')
     parser.add_argument('--PRM', action='store_true')
     parser.add_argument('--voting_method', type=str, default='all', choices=['self', 'all', 'rand'])
-    parser.add_argument('--prompted', action='store_true')
-    parser.add_argument('--prefixed', action='store_true')
-    parser.add_argument('--deep-prompt', action='store_true')
     parser.add_argument('--prompt-depth', type=int, default=1)
     parser.add_argument('--lr-schedule', type=str, default='cyclic', choices=['cyclic', 'drops'])
-    
-    parser.add_argument('--block_type', type=str, default="cnn", choices=["attention", "cnn"])
-    parser.add_argument('--disjoint_prompts', action='store_true')
+
     parser.add_argument('--full_white', action='store_true')
     parser.add_argument('--mix_lam', type=float, default=-1)
     parser.add_argument('--a_lam', type=float, default=-1)
     parser.add_argument('--d_lam', type=float, default=0.1)
-
+    parser.add_argument('--eval-nat', action='store_true')
     parser.add_argument('--freeze-head', action='store_true')
     parser.add_argument('--prompt_length', type=int, default=100)
     parser.add_argument('--ws', type=int, default=0)

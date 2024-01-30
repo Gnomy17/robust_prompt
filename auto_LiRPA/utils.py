@@ -5,7 +5,6 @@ import torch
 import os
 import sys
 import appdirs
-from oslo_concurrency import lockutils, processutils
 from collections import defaultdict, Sequence, namedtuple
 
 logging.basicConfig(
@@ -50,7 +49,6 @@ if False:
 user_data_dir = appdirs.user_data_dir('auto_LiRPA')
 if not os.path.exists(user_data_dir):
     os.makedirs(user_data_dir)
-lockutils.set_defaults(os.path.join(user_data_dir, '.lock'))
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
