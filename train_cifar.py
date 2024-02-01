@@ -17,11 +17,7 @@ from buffer import Buffer
 import wandb
 # torch.autograd.set_detect_anomaly(True)
 args = get_args()
-wandb.init(
-    project="rpt_cifar",
-    name=args.name,
-    config=args
-)
+
 joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
 def make_prompt(length, h_dim, depth=1,init_xavier=True):
     prompt = torch.zeros(1, length, h_dim, depth, requires_grad=True)
@@ -30,27 +26,19 @@ def make_prompt(length, h_dim, depth=1,init_xavier=True):
         nn.init.xavier_uniform_(prompt)
     # prompt = nn.Parameter(prompt)
     return prompt
-
-args.out_dir = args.out_dir + args.dataset+"_"+args.model+"_"+args.method + "_" +args.name
+args.name = args.params + "_" + args.dataset+"_"+args.lr_schedule+"_"+args.method + "_" +args.model
+args.out_dir = args.out_dir + '_' + args.name
+wandb.init(
+    project="rpt_cifar",
+    name=args.name,
+    config=args
+)
 args.out_dir = args.out_dir +"/seed"+str(args.seed)
-if args.ARD:
-    args.out_dir = args.out_dir + "_ARD"
-if args.PRM:
-    args.out_dir = args.out_dir + "_PRM"
-if args.scratch:
-    args.out_dir = args.out_dir + "_no_pretrained"
-# if args.load:
-#     args.out_dir = args.out_dir + "_load"
-
-
-args.out_dir = args.out_dir #+ "/weight_decay_{:.6f}/".format(
-        # args.weight_decay)+ "drop_rate_{:.6f}/".format(args.drop_rate)+"nw_{:.6f}/".format(args.n_w)
-
 
 print(args.out_dir)
 os.makedirs(args.out_dir,exist_ok=True)
 logfile = os.path.join(args.out_dir, 'log_{:.4f}.log'.format(args.weight_decay))
-logger = logging.getLogger(__name__)
+from auto_LiRPA.utils import logger
 file_handler = logging.FileHandler(logfile)
 file_handler.setFormatter(logging.Formatter('%(levelname)-8s %(asctime)-12s %(message)s'))
 logger.addHandler(file_handler)
@@ -269,7 +257,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
 
-                dpgd = attack_pgd(model, X, y, epsilon_base, alpha, 1, lower_limit, upper_limit, prompt=prompt if args.full_white else None)
+                delta = attack_pgd(model, X, y, epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt if args.full_white else None)
                 X.detach()
                 out = model(X + delta, prompt)
                 outc = model(X, prompt)
@@ -334,7 +322,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
             X_ = X[0: batch_size].cuda()  
             y_ = y[0: batch_size].cuda()  
             
-            loss, acc_a, y, acc_c = train_step(X,y,epoch_now,mixup_fn, hist_a, hist_c, corr_mats)
+            loss, acc_a, y, acc_c = train_step(X,y,epoch_now,mixup_fn, corr_mats)
             train_loss += loss.item() * y_.size(0)
             train_acc += acc_a * y_.size(0)
             train_clean += acc_c * y_.size(0)
