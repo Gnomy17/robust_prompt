@@ -1,23 +1,16 @@
+#### Code built upon the repository https://github.com/mo666666/When-Adversarial-Training-Meets-Vision-Transformers
+
 import numpy as np
-import tqdm
-import random
-from functools import partial
-import torch.nn as nn
-import torch.nn.functional as F
-from timm.loss import  SoftTargetCrossEntropy
-from timm.data import Mixup
 from parser import get_args
 from utils import *
-from torch.autograd import Variable
-from attacks import attack_pgd, attack_cw
 from losses import *
 from evaluate import evaluate_aa, evaluate_natural, evaluate_pgd, evaluate_CW
 import logging
-import matplotlib.pyplot as plt
-from buffer import Buffer
 import wandb
-from model_for_cifar.model import get_model_prompt
-# torch.autograd.set_detect_anomaly(True)
+from model import get_model_prompt
+
+
+#### PARSE ARGS AND SETUP LOGGING #####
 args = get_args()
 
 joint_p = lambda x, y: torch.cat((x, y), dim=1) if y is not None else x 
@@ -49,6 +42,8 @@ logger.addHandler(file_handler)
 
 logger.info(args)
 
+
+##### LOAD DATA, MODEL, PROMPTS #####
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed(args.seed)
@@ -60,42 +55,40 @@ train_loader, test_loader= get_loaders(args)
 
 
 
-model, prompt, params = get_model_prompt(args)
+model, prompt, params, epoch_s, opt_dict = get_model_prompt(args)
 if args.optim == 'sgd':
     opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 elif args.optim == 'adam':
-    opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)      
+    opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)   
+if opt_dict != None:
+    opt.load_state_dict(opt_dict)   
 
 
 
-def train_adv(args, model, prompt, opt, ds_train, ds_test, logger):
-
-
-    train_loader, test_loader = ds_train, ds_test
+##### TRAIN MODEL #####
+def train_adv(args, model, prompt, opt, train_loader, test_loader, logger, epoch_s=0):
 
     steps_per_epoch = len(train_loader)
-    
+    #### DETERMINE LOSS FUNCTION ####
     if args.method == 'natural':
-        loss_fn = nat_loss
+        loss_fn = natural
     elif args.method == 'AT':
-        loss_fn = AT_loss
+        loss_fn = AT
     elif args.method == 'TRADES':
-        loss_fn = TRADES_loss
-    elif args.method == 'PAT':
-        loss_fn = PAT_loss
-    elif args.method == 'PTRADES':
-        loss_fn = PTRADES_loss
-    elif args.method == 'PSIM':
-        loss_fn = PSIM_loss
-    elif args.method == 'PKL':
-        loss_fn = PKL_loss
+        loss_fn = TRADES
+    elif args.method == 'ADAPT':
+        if args.adapt_loss == 'ce':
+            loss_fn = ADAPT_CE
+        elif args.adapt_loss == 'kl':
+            loss_fn = ADAPT_KL
     else:
         raise ValueError(args.method)
     
+    #### IF LOADING RESUME EPOCH ####
     if args.load:
-        logger.info("Resuming at epoch {}".format(checkpoint['epoch'] + 1))
+        logger.info("Resuming at epoch {}".format(epoch_s))
 
-    lr_steps = args.epochs * steps_per_epoch
+    #### LR SCHEDULE ####
     if args.lr_schedule == 'cyclic':
         lr_schedule = lambda t, max_ep: np.interp([t], [0, max_ep // 2, max_ep], [args.lr_min, args.lr_max, args.lr_min])[0]
     elif args.lr_schedule == 'drops':
@@ -106,27 +99,17 @@ def train_adv(args, model, prompt, opt, ds_train, ds_test, logger):
                 return args.lr_max*0.1
             else:
                 return args.lr_max* 0.01
-    epoch_s = 0 if not args.load else (checkpoint['epoch'])
-    if args.load:
-        for k in checkpoint:
-            checkpoint[k] = None
-    p_copy = None
-    for epoch in range(epoch_s + 1, args.epochs + 1):
-        # if p_copy is not None:
-        #     print(prompt - p_copy)
-        
-        if args.just_eval:
-            break
 
+    #### TRAIN EPOCHS ####
+    for epoch in range(epoch_s + 1, args.epochs + 1):
         train_loss = 0
         train_acc = 0
         train_clean = 0
-        train_prompted = 0
-        train_adetect = 0
         train_n = 0
 
       
         model.train()
+        #### EPOCH ####
         for step, (X, y) in enumerate(train_loader):
             epoch_now = epoch - 1 + (step + 1) / len(train_loader)
 
@@ -138,7 +121,7 @@ def train_adv(args, model, prompt, opt, ds_train, ds_test, logger):
             opt.zero_grad()
             model.zero_grad()
             loss.backward()
-            grad_norm = torch.nn.utils.clip_grad_norm_(list(model.parameters()) , args.grad_clip)
+            torch.nn.utils.clip_grad_norm_(list(model.parameters()) , args.grad_clip)
             opt.step()
             opt.zero_grad()
             model.zero_grad()
@@ -152,7 +135,7 @@ def train_adv(args, model, prompt, opt, ds_train, ds_test, logger):
             train_clean += acc_c * y.size(0)
             train_n += y.size(0)
             
-            
+            #### EVAL DURING EPOCH ####
             if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                 wandb.config.steps_per_epoch = steps_per_epoch // args.log_interval + 1
                 wandb.log(
@@ -168,25 +151,24 @@ def train_adv(args, model, prompt, opt, ds_train, ds_test, logger):
                     opt.param_groups[0]['lr'],
                         train_loss / train_n, train_acc / train_n, train_clean/ train_n
                 ))
-            lr = lr_schedule(epoch_now, args.ws) if (args.ws and epoch_now < args.ws) else lr_schedule(epoch_now, args.epochs) 
+            #### LR SCHEDULE UPDATE ####
+            lr = lr_schedule(epoch_now, args.epochs) 
             opt.param_groups[0].update(lr=lr)
-        p_copy = prompt.clone().detach()
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
 
+        ### SAVE CHECKPOINT ####
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
             to_save = {'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': [prompt]}
             torch.save(to_save, path)
             logger.info('Checkpoint saved to {}'.format(path))
         
+        #### EVALUATION EACH EPOCH ####
         model.eval()
         logger.info('Evaluating epoch...')
         loss_clean, acc_clean = evaluate_natural(args, model, test_loader, logger, prompt=prompt)
         loss_adv, acc_adv = evaluate_pgd(args, model, test_loader, prompt=prompt)
         opt.zero_grad()
         model.zero_grad()
-        # loss_cw, acc_cw = evaluate_CW(args, model, test_loader, prompt=prompt)
-        # opt.zero_grad()
-        # model.zero_grad()
         logger.info('Natural: loss {:.4f} acc {:.4f}'.format(loss_clean, acc_clean))
         logger.info('PGD10 : loss {:.4f} acc {:.4f}'.format(loss_adv, acc_adv))
         wandb.log(
@@ -198,6 +180,7 @@ def train_adv(args, model, prompt, opt, ds_train, ds_test, logger):
             }
         )
 
+#### EVALUATE TRAINED MODEL/PROMPT ####
 def eval_adv(args, model, prompt, test_loader, logger):
     model.eval()
     logger.info('Evaluating natural...')
@@ -215,48 +198,49 @@ def eval_adv(args, model, prompt, test_loader, logger):
         args.alpha = 2
         loss_pgd, acc_pgd = evaluate_pgd(args, model, test_loader, prompt=prompt)
         logger.info('Moving to traditional attacks...')
-    # logger.info('Evaluating FGSM...')
-    # args.eval_iters = 1
-    # args.eval_restarts = 1
-    # args.alpha = 2*args.epsilon
-    #loss_fgsm, acc_fgsm = evaluate_pgd(args, model, test_loader, prompt=prompt, unadapt=args.unadapt)
-    #logger.info('Evaluating PGD10...')
-    #args.eval_iters = 10
-    #args.eval_restarts = 1
-    #args.alpha = 2
-    #loss_pgd, acc_pgd = evaluate_pgd(args, model, test_loader, prompt=prompt, unadapt=args.unadapt)
+    logger.info('Evaluating FGSM...')
+    args.eval_iters = 1
+    args.eval_restarts = 1
+    args.alpha = 2*args.epsilon
+    loss_fgsm, acc_fgsm = evaluate_pgd(args, model, test_loader, prompt=prompt, unadapt=args.unadapt)
+    logger.info('Evaluating PGD10...')
+    args.eval_iters = 10
+    args.eval_restarts = 1
+    args.alpha = 2
+    loss_pgd, acc_pgd = evaluate_pgd(args, model, test_loader, prompt=prompt, unadapt=args.unadapt)
     if not args.unadapt:
         logger.info('Evaluating CW...')
         loss_cw, acc_cw = evaluate_CW(args, model, test_loader, prompt=prompt, unadapt=args.unadapt)
         model.zero_grad()
-        # aa_path = os.path.join(args.out_dir, 'result_autoattack.txt')
-        # _ = evaluate_aa(args, model, test_loader, aa_path, aa_batch=args.AA_batch, prompt=prompt)
-    # logger.info({
-    #         'final clean loss': loss_clean,
-    #         'final clean acc': acc_clean,
-    #         'final pgd10 loss': loss_pgd,
-    #         'final pgd10 acc': acc_pgd,
-    #         'final fgsm loss': loss_fgsm,
-    #         'final fgsm acc': acc_fgsm,
-    #         'final cw loss': loss_cw,
-    #         'final cw acc': acc_cw,
-    #     })
-    # wandb.log(
-    #     {
-    #         'final clean loss': loss_clean,
-    #         'final clean acc': acc_clean,
-    #         'final pgd10 loss': loss_pgd,
-    #         'final pgd10 acc': acc_pgd,
-    #         'final fgsm loss': loss_fgsm,
-    #         'final fgsm acc': acc_fgsm,
-    #         'final cw loss': loss_cw,
-    #         'final cw acc': acc_cw,
-    #     }
-    # )
+        aa_path = os.path.join(args.out_dir, 'result_autoattack.txt')
+        _ = evaluate_aa(args, model, test_loader, aa_path, aa_batch=args.AA_batch, prompt=prompt)
+    logger.info({
+            'final clean loss': loss_clean,
+            'final clean acc': acc_clean,
+            'final pgd10 loss': loss_pgd,
+            'final pgd10 acc': acc_pgd,
+            'final fgsm loss': loss_fgsm,
+            'final fgsm acc': acc_fgsm,
+            'final cw loss': loss_cw,
+            'final cw acc': acc_cw,
+        })
+    wandb.log(
+        {
+            'final clean loss': loss_clean,
+            'final clean acc': acc_clean,
+            'final pgd10 loss': loss_pgd,
+            'final pgd10 acc': acc_pgd,
+            'final fgsm loss': loss_fgsm,
+            'final fgsm acc': acc_fgsm,
+            'final cw loss': loss_cw,
+            'final cw acc': acc_cw,
+        }
+    )
 
 
 
+### PERFORM TRAINING/EVALUATION
 if args.just_eval:
     eval_adv(args, model, prompt, test_loader, logger)
 else:
-    train_adv(args, model, prompt, opt, train_loader, test_loader, logger)
+    train_adv(args, model, prompt, opt, train_loader, test_loader, logger, epoch_s=epoch_s)

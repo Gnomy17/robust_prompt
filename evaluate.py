@@ -12,26 +12,6 @@ from autoattack import AutoAttack
 
 
 def evaluate_aa(args, model,test_loader,log_path,aa_batch=128, prompt=None):
-    # if args.dataset=="cifar":
-    #     test_transform_nonorm = transforms.Compose([
-    #         transforms.Resize([args.resize, args.resize]),
-    #         transforms.ToTensor()
-    #     ])
-    #     test_dataset_nonorm = datasets.CIFAR10(
-    #     args.data_dir, train=False, transform=test_transform_nonorm, download=True)
-    # if args.dataset=="imagenette" or args.dataset=="imagenet" :
-    #     test_transform_nonorm = transforms.Compose([
-    #         transforms.Resize([args.resize, args.resize]),
-    #         transforms.ToTensor()
-    #     ])
-    #     test_dataset_nonorm = datasets.ImageFolder(args.data_dir+"val/",test_transform_nonorm)
-    # test_loader_nonorm = torch.utils.data.DataLoader(
-    #     dataset=test_dataset_nonorm,
-    #     batch_size=args.batch_size,
-    #     shuffle=False,
-    #     pin_memory=True,
-    #     num_workers=4,
-    # )
     if args.dataset=="cifar":
         mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
         std = torch.tensor(cifar10_std).view(3,1,1).cuda()
@@ -45,7 +25,6 @@ def evaluate_aa(args, model,test_loader,log_path,aa_batch=128, prompt=None):
     model.eval()
     l = [x for (x, y) in test_loader]
     x_test = torch.cat(l, 0)
-    # print(x_test.size())
     l = [y for (x, y) in test_loader]
     y_test = torch.cat(l, 0)
     class normalize_model():
