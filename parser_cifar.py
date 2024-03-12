@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument('--ws', type=int, default=0)
     parser.add_argument('--past', action='store_true')
     parser.add_argument('--train-patch', action='store_true')
+    parser.add_argument('--deep-p', action='store_true')
     parser.add_argument('--only-pe', action='store_true')
     parser.add_argument('--drop-rate', default=1.0, type=float)
     parser.add_argument("--beta", type=float, default=6.0)

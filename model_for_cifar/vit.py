@@ -365,20 +365,29 @@ class VisionTransformer(nn.Module):
         x = x + self.pos_embed
         x = self.pos_drop(x)
         shift = 0 if prompt is None else prompt.size(1)
-
-        for i, blk in enumerate(self.blocks):
-            ind = i if not deep else (i - (self.depth - prompt.size(-1)))
-            if (prompt is not None) and (0 <= ind < prompt.size(-1)):
-                bprompt = prompt[:, :, :, ind].view(1, prompt.size(1), prompt.size(2)).expand(x.size(0), prompt.size(1), prompt.size(2)) 
-                if ind == 0:
-                    x = torch.cat((bprompt, x), dim=1)
-                else:
-                    # bprompt = self.norm(bprompt)
-                    x = torch.cat((bprompt, x[:, prompt.size(1):, :]), dim=1)
-                #### additive prefix tuning ####
-                # else:
-                #     x[:, :prompt.size(1)] += bprompt
-            x = blk(x)
+        if deep:
+            assert prompt.size(-1) == 1
+            l = prompt.size(1)//self.depth
+            for i, blk in enumerate(self.blocks):
+                s = i*l
+                e = (i + 1)*l if i + 1 < len(self.blocks) else prompt.size(1)
+                bprompt = prompt[:, s:e, :, :].view(1, e-s, prompt.size(2)).expand(x.size(0), e-s ,prompt.size(2))
+                x = torch.cat((bprompt, x), dim=1)
+                x = blk(x)
+        else: 
+            for i, blk in enumerate(self.blocks):
+                ind = i
+                if (prompt is not None) and (0 <= ind < prompt.size(-1)):
+                    bprompt = prompt[:, :, :, ind].view(1, prompt.size(1), prompt.size(2)).expand(x.size(0), prompt.size(1), prompt.size(2)) 
+                    if ind == 0:
+                        x = torch.cat((bprompt, x), dim=1)
+                    else:
+                        # bprompt = self.norm(bprompt)
+                        x = torch.cat((bprompt, x[:, prompt.size(1):, :]), dim=1)
+                    #### additive prefix tuning ####
+                    # else:
+                    #     x[:, :prompt.size(1)] += bprompt
+                x = blk(x)
         x = self.norm(x)
         x_cls = x[:, shift]
         x_cls = self.pre_logits(x_cls)
@@ -389,11 +398,11 @@ class VisionTransformer(nn.Module):
             x, f = self.forward_features(x, prompt, deep)
         else:
             x, f = self.forward_features(x)
-        x = self.head(x)
+        out = self.head(x)
         if get_fs:
-            return x, f
+            return out, x
         else:
-            return x
+            return out
 
 
 class DistilledVisionTransformer(VisionTransformer):
@@ -565,3 +574,4 @@ def vit_small_patch16_224(pretrained=False, patch_size=16, args=None, **kwargs):
         model_kwargs.setdefault('qk_scale', 768 ** -0.5)
     model = _create_vision_transformer('vit_small_patch16_224', pretrained=pretrained,args=args, **model_kwargs)
     return model
+

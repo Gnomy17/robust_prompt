@@ -26,8 +26,16 @@ def make_prompt(length, h_dim, depth=1,init_xavier=True):
         nn.init.xavier_uniform_(prompt)
     # prompt = nn.Parameter(prompt)
     return prompt
-args.name = args.params + "_" + args.dataset+"_"+args.lr_schedule+"_"+args.method + "_" +args.model
-args.out_dir = args.out_dir + '_' + args.name
+if 'base' in args.model:
+    mname = 'base'
+elif 'small' in args.model:
+    mname = 'small'
+elif 'large' in args.model:
+    mname = 'large'
+else:
+    mname = args.model
+args.name = args.params + (str(args.prompt_length) if args.params in ['PT', 'P2T', 'DPT'] else "") + "_" + args.dataset+"_"+args.lr_schedule+"_"+args.method + "_" +mname + ("_deep" if args.deep_p else "")
+args.out_dir = args.out_dir + args.name
 wandb.init(
     project="rpt_cifar",
     name=args.name,
@@ -132,7 +140,7 @@ if args.params in ['PT','DPT']:
     prompts = [prompt]
     params = [unexpaned if args.params == 'DPT' else prompt]
         
-elif args.params == ['P2T']:
+elif args.params == 'P2T':
     if args.load:
         prompt = (checkpoint['prompt'])[0]
     else:
@@ -239,7 +247,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 y = y.cuda()
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
-                model(X, prompt)
+                model(X, prompt, deep=args.deep_p)
 
                 loss = criterion(output, y)
                 loss.backward()
@@ -247,7 +255,7 @@ def train_adv(args, model, ds_train, ds_test, logger):
 
                 if args.eval_nat:
                     dpgd = attack_pgd(model, X, y, epsilon_base, alpha, 1, lower_limit, upper_limit, prompt=prompt if args.full_white else None).detach()
-                    out_a = model(X + dpgd, prompt)
+                    out_a = model(X + dpgd, prompt, deep=args.deep_p)
                     acc_a = (out_a.max(1)[1] == y.max(1)[1]).float().mean().item()
                     return loss, acc_a, y, acc
                 return loss, acc, y, acc 
@@ -257,10 +265,10 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 if mixup_fn is not None:
                     X, y = mixup_fn(X, y)
 
-                delta = attack_pgd(model, X, y, epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt if args.full_white else None)
+                delta = attack_pgd(model, X, y, epsilon_base, alpha, args.attack_iters, 1, lower_limit, upper_limit, prompt=prompt if args.full_white else None, deep=args.deep_p)
                 X.detach()
-                out = model(X + delta, prompt)
-                outc = model(X, prompt)
+                out = model(X + delta, prompt, deep=args.deep_p)
+                outc = model(X, prompt, deep=args.deep_p)
                 loss = criterion(out, y)
                 loss.backward()
 
@@ -284,19 +292,19 @@ def train_adv(args, model, ds_train, ds_test, logger):
                 model.eval()
 
                 delta.requires_grad = True
-                condition = args.prompted or args.prefixed
+
                 for _ in range(args.attack_iters):
-                    loss_kl = criterion_kl(F.log_softmax(model(X + delta, prompt) if condition else model(X + delta), dim=1),
-                                           F.softmax(model(X, prompt) if condition else model(X), dim=1))
+                    loss_kl = criterion_kl(F.log_softmax(model(X + delta, prompt, deep=args.deep_p), dim=1),
+                                           F.softmax(model(X, prompt, deep=args.deep_p), dim=1))
                     grad = torch.autograd.grad(loss_kl, [delta])[0]
                     delta.data = clamp(delta + alpha * torch.sign(grad), -epsilon, epsilon)
                     delta.data = clamp(delta, lower_limit - X, upper_limit - X)
 
                 delta = delta.detach()
 
-                output = logits = model(X, prompt)
+                output = logits = model(X, prompt, deep=args.deep_p)
                 output = output.detach()
-                outa = model(X + delta, prompt)
+                outa = model(X + delta, prompt, deep=args.deep_p)
 
                 acc_c = (output.max(1)[1] == y).float().mean().item()
                 loss_natural = F.cross_entropy(logits, y)
@@ -332,24 +340,24 @@ def train_adv(args, model, ds_train, ds_test, logger):
             opt.zero_grad()
             model.zero_grad()
             
-            if (step + 1 == steps_per_epoch or (step + 1) % 200 == 0) and args.method != 'natural':
-                fg, axarr = plt.subplots(1,4)
+            #if (step + 1 == steps_per_epoch or (step + 1) % 200 == 0) and args.method != 'natural':
+            #    fg, axarr = plt.subplots(1,4)
             
-                axarr[0].matshow(corr_mats[0]/train_n)
-                axarr[0].yaxis.tick_left()
-                axarr[0].set_title('clean samples')
-                axarr[0].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_clean/train_n * 100))
-                axarr[0].set_ylabel('ground truth label')
-                axarr[1].matshow(corr_mats[1]/train_n)
-                axarr[1].yaxis.tick_left()
-                axarr[1].set_title('perturbed loss(y)')
-                axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
-                axarr[2].yaxis.tick_left()
-                axarr[2].set_title('perturbed loss(y + 1)')
-                axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
-                axarr[2].matshow(corr_mats[2]/train_n)
-                plt.savefig(args.out_dir + "/mat_present_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
-                plt.close()
+            #    axarr[0].matshow(corr_mats[0]/train_n)
+            #    axarr[0].yaxis.tick_left()
+            #    axarr[0].set_title('clean samples')
+            #    axarr[0].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_clean/train_n * 100))
+            #    axarr[0].set_ylabel('ground truth label')
+            #    axarr[1].matshow(corr_mats[1]/train_n)
+            #    axarr[1].yaxis.tick_left()
+            #    axarr[1].set_title('perturbed loss(y)')
+            #    axarr[1].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_acc/train_n * 100))
+            #    axarr[2].yaxis.tick_left()
+            #    axarr[2].set_title('perturbed loss(y + 1)')
+            #    axarr[2].set_xlabel('predicted label\n' + "Acc: {:.2f}".format(train_prompted/train_n * 100))
+            #    axarr[2].matshow(corr_mats[2]/train_n)
+            #    plt.savefig(args.out_dir + "/mat_present_"+str(epoch)+"step_" + str(step) + ".png", dpi=500)
+            #    plt.close()
             if (step + 1) % args.log_interval == 0 or step + 1 == steps_per_epoch:
                 wandb.config.steps_per_epoch = steps_per_epoch // args.log_interval + 1
                 wandb.log(
@@ -371,8 +379,6 @@ def train_adv(args, model, ds_train, ds_test, logger):
         path = os.path.join(args.out_dir, 'checkpoint_{}'.format(epoch))
 
         if epoch == args.epochs or epoch % args.chkpnt_interval == 0:
-            if not args.prompted and not args.prefixed:
-                prompt = None
             to_save = {'state_dict': model.state_dict(), 'epoch': epoch, 'opt': opt.state_dict(), 'prompt': [prompt]}
             torch.save(to_save, path)
             logger.info('Checkpoint saved to {}'.format(path))
@@ -382,9 +388,7 @@ train_adv(args, model, train_loader, test_loader, logger)
 
 
 logger.info(args.out_dir)
-if not args.prompted and not args.prefixed:
-    prompt = None
-evaluate_natural(args, model, test_loader, verbose=False, prompt=prompt)
+evaluate_natural(args, model, test_loader, logger,  prompt=prompt)
 
 # chkpnt = None
 args.eval_iters = 10
@@ -401,6 +405,6 @@ logger.info('CW20: loss {:.4f} acc {:.4f}'.format(cw_loss, cw_acc))
 
 
 
-logger.info('Moving to AA...')
-at_path = os.path.join(args.out_dir, 'result_'+'_autoattack.txt')
-evaluate_aa(args, model, test_loader,at_path, args.AA_batch, prompt=prompt)
+#logger.info('Moving to AA...')
+#at_path = os.path.join(args.out_dir, 'result_'+'_autoattack.txt')
+#evaluate_aa(args, model, test_loader,at_path, args.AA_batch, prompt=prompt)
