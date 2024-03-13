@@ -35,7 +35,12 @@ args.out_dir = args.out_dir +"/seed"+str(args.seed)
 print(args.out_dir)
 os.makedirs(args.out_dir,exist_ok=True)
 logfile = os.path.join(args.out_dir, 'log_{:.4f}.log'.format(args.weight_decay))
-from auto_LiRPA.utils import logger
+logging.basicConfig(
+    format='%(levelname)-8s %(asctime)-12s %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 file_handler = logging.FileHandler(logfile)
 file_handler.setFormatter(logging.Formatter('%(levelname)-8s %(asctime)-12s %(message)s'))
 logger.addHandler(file_handler)
