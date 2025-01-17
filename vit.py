@@ -14,7 +14,7 @@ for some einops/einsum fun
 * Simple transformer style inspired by Andrej Karpathy's https://github.com/karpathy/minGPT
 * Bert reference code checks against Huggingface Transformers and Tensorflow Bert
 
-DeiT model defs and weights from https://github.com/facebookresearch/deit,
+DeiT model defs and weights from https://gi thub.com/facebookresearch/deit,
 paper `DeiT: Data-efficient Image Transformers` - https://arxiv.org/abs/2012.12877
 
 Hacked together by / Copyright 2020 Ross Wightman
@@ -27,6 +27,7 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import timm
 
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from timm.models.helpers import load_pretrained
@@ -517,12 +518,16 @@ def _create_vision_transformer(variant, pretrained=False, distilled=False, **kwa
 
     model_cls = DistilledVisionTransformer if distilled else VisionTransformer
     model = model_cls(img_size=img_size, num_classes=num_classes, representation_size=repr_size, **kwargs)
-    model.default_cfg = default_cfg
+    model.pretrained_cfg = default_cfg
 
     if pretrained:
-        load_pretrained(
-            model, num_classes=num_classes, in_chans=kwargs.get('in_chans', 3),
-            filter_fn=partial(checkpoint_filter_fn, args=kwargs.pop('args') , model=model))
+        # print(model.default_cfg)
+        _logger.warning(variant)
+        model_timm = timm.create_model(variant, pretrained=True, num_classes=num_classes, in_chans=kwargs.get('in_chans', 3))
+        model.load_state_dict(checkpoint_filter_fn(model_timm.state_dict(), model, kwargs.pop('args')))
+        # load_pretrained(
+        #     model, num_classes=num_classes, in_chans=kwargs.get('in_chans', 3),
+        #     filter_fn=partial(checkpoint_filter_fn, args=kwargs.pop('args') , model=model))
     else:
         _logger.warning('Training from scratch')
     return model

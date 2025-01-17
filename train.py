@@ -8,7 +8,8 @@ from evaluate import evaluate_aa, evaluate_natural, evaluate_pgd, evaluate_CW
 import logging
 import wandb
 from model import get_model_prompt
-
+from torchvision import transforms
+import json
 
 #### PARSE ARGS AND SETUP LOGGING #####
 args = get_args()
@@ -23,7 +24,7 @@ elif 'large' in args.model:
     mname = 'large'
 else:
     mname = args.model
-args.name = args.params + (str(args.prompt_length) if args.params in ['PT', 'P2T', 'DPT'] else "") + "_" + args.dataset+"_"+args.lr_schedule+"_"+args.method + "_" +mname + ("_deep" if args.deep_p else "") + ("_patch" if args.train_patch else "")
+args.name = args.params + (str(args.prompt_length) if args.params in ['PT', 'P2T'] else "") + "_" + args.dataset+"_"+args.lr_schedule+"_"+args.method + "_" +mname + ("_deep" if args.deep_p else "") + ("_patch" if args.train_patch else "")
 args.out_dir = args.out_dir + args.name
 wandb.init(
     project="rpt_cifar",
@@ -65,7 +66,7 @@ if args.optim == 'sgd':
     opt = torch.optim.SGD(params, lr=args.lr_max, momentum=args.momentum, weight_decay=args.weight_decay) 
 elif args.optim == 'adam':
     opt = torch.optim.Adam(params, lr=args.lr_max, weight_decay=args.weight_decay)   
-if opt_dict != None:
+if opt_dict != None and not (args.just_eval or args.eval_bb or args.eval_en):
     opt.load_state_dict(opt_dict)   
 
 
@@ -81,6 +82,10 @@ def train_adv(args, model, prompt, opt, train_loader, test_loader, logger, epoch
         loss_fn = AT
     elif args.method == 'TRADES':
         loss_fn = TRADES
+    elif args.method == 'MART':
+        loss_fn = MART
+    elif args.method == 'NFGSM':
+        loss_fn = NFGSM
     elif args.method == 'ADAPT':
         if args.adapt_loss == 'ce':
             loss_fn = ADAPT_CE
@@ -243,9 +248,120 @@ def eval_adv(args, model, prompt, test_loader, logger):
     )
 
 
+def eval_bb(args, model, prompt, test_loader, logger):
+    model.eval()
+    logger.info('Evaluating with Blackbox attacks')
+    mu, std, n_cls = get_mu_std_ncls(args)
+    epsilon = (args.epsilon / 255.) 
+    class normalize_model():
+        def __init__(self, model, prompt=None, deep=False):
+            self.model_test = model
+            self.prompt = prompt
+            self.deep = deep
+        def __call__(self, x):
+            return self.model_test(x, self.prompt, deep=self.deep)
+        def eval(self):
+            self.model_test.eval()
+    new_model = normalize_model(model, prompt, args.deep_p)
+    from RayS.general_torch_model import GeneralTorchModel
+    torch_model = GeneralTorchModel(new_model, n_class=n_cls, im_mean=mu, im_std=std)
+
+    from RayS.RayS import RayS
+    attack = RayS(torch_model, epsilon=epsilon)
+
+    adbd = []
+    queries = []
+    succ = []
+    summary_all = ''
+    count = 0
+    for i, (data, label) in enumerate(test_loader):
+        data, label = data.cuda(), label.cuda()
+
+        if count >= args.num_eval or i == len(test_loader) - 1:
+            break
+
+        # if targeted:
+        #     target = np.random.randint(torch_model.n_class) * torch.ones(
+        #         label.shape, dtype=torch.long).cuda() if targeted else None
+        #     while target and torch.sum(target == label) > 0:
+        #         print('re-generate target label')
+        #         target = np.random.randint(
+        #             torch_model.n_class) * torch.ones(len(data), dtype=torch.long).cuda()
+        # else:
+        target = None
+        # print((torch_model.predict_label(data) == label).float().mean())
+        x_adv, queries_b, adbd_b, succ_b = attack(
+            data, label, target=target, query_limit=args.n_query)
+
+        queries.append(queries_b)
+        adbd.append(adbd_b)
+        succ.append(succ_b)
+
+        count += data.shape[0]
+
+        summary_batch = "Batch: {:4d} Avg Queries (when found adversarial examples): {:.4f} ADBD: {:.4f} Robust Acc: {:.4f}\n" \
+            .format(
+                i + 1,
+                torch.stack(queries).flatten().float().mean(),
+                torch.stack(adbd).flatten().mean(),
+                1 - torch.stack(succ).flatten().float().mean()
+            )
+        print(summary_batch)
+        logger.info(summary_batch)
+        summary_all += summary_batch
+    name = args.dataset + '_query_' + str(args.n_query) + '_batch'
+    with open(name + '_summary' + '.txt', 'w') as fileopen:
+        json.dump(summary_all, fileopen)
+
+def eval_en(args, model, prompt, test_loader, logger):
+    model.eval()
+    mu, std, n_cls = get_mu_std_ncls(args)
+    class normalize_model():
+        def __init__(self, model, prompt=None, deep=False):
+            self.model_test = model
+            self.prompt = prompt
+            self.deep = deep
+        def __call__(self, x):
+            return self.model_test((x - mu)/std, self.prompt, deep=self.deep)
+        def eval(self):
+            self.model_test.eval()
+    model_new = normalize_model(model, prompt)
+
+    args.eps = args.epsilon / 255.
+    args.iters = args.attack_iters
+    from AdaEA.utils.get_attack import get_attack
+    from AdaEA.utils.get_dataset import get_dataset
+    from AdaEA.utils.get_models import get_models
+    from AdaEA.utils.tools import same_seeds, get_project_path
+
+    device = torch.device(f'cuda:0')
+    models, metrix = get_models(args, device=device)
+    ens_model = ['resnet18', 'inc_v3', 'vit_t', 'deit_t']
+    print(f'ens model: {ens_model}')
+    acc = 0
+    count = 0
+    resizer = transforms.Resize(32)
+    for idx, (data, label) in enumerate(test_loader):
+        n = label.size(0)
+        data, label = data.to(device), label.to(device)
+        attack_method = get_attack(args, ens_models=[models[i] for i in ens_model], device=device, models=models)
+        adv_exp = attack_method(data, label)
+
+
+        pred = model_new(resizer(adv_exp))
+        acc += (pred.max(1)[1] == label).float().sum()
+        count += label.shape[0]
+
+        logger.info('Batch {:d}/{:d}: Acc so far: {:.4f}'.format(idx, len(test_loader), acc/count))
+
+
 
 ### PERFORM TRAINING/EVALUATION
 if args.just_eval:
     eval_adv(args, model, prompt, test_loader, logger)
+elif args.eval_bb:
+    eval_bb(args, model, prompt, test_loader, logger)
+elif args.eval_en:
+    eval_en(args, model, prompt, test_loader, logger)
 else:
     train_adv(args, model, prompt, opt, train_loader, test_loader, logger, epoch_s=epoch_s)

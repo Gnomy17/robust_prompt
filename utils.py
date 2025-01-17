@@ -20,7 +20,7 @@ imagenet_std = (0.229, 0.224, 0.225)
 
 
 def normalize(args, X):
-    if args.dataset=="cifar":
+    if args.dataset=="cifar10":
         mu = torch.tensor(cifar10_mean).view(3, 1, 1).cuda()
         std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
     elif args.dataset=='cifar100':
@@ -31,9 +31,23 @@ def normalize(args, X):
         std = torch.tensor(imagenet_std).view(3, 1, 1).cuda()
     return (X - mu) / std
 
+def get_mu_std_ncls(args):
+    if args.dataset=="cifar10":
+        num_cls = 10
+        mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
+        std = torch.tensor(cifar10_std).view(3,1,1).cuda()
+    if args.dataset=="imagenette" or args.dataset=="imagenet":
+        num_cls = 10 if args.dataset=="imagenette" else 1000 
+        mu = torch.tensor(imagenet_mean).view(3,1,1).cuda()
+        std = torch.tensor(imagenet_std).view(3,1,1).cuda()
+    if args.dataset=='cifar100':
+        num_cls = 100
+        mu = torch.tensor(cifar100_mean).view(3,1,1).cuda()
+        std = torch.tensor(cifar100_std).view(3,1,1).cuda()
+    return mu, std, num_cls
 
 def get_loaders(args):
-    if args.dataset=="cifar":
+    if args.dataset=="cifar10":
         mean =cifar10_mean
         std = cifar10_std
     elif args.dataset=='cifar100':
@@ -50,13 +64,15 @@ def get_loaders(args):
     train_list.append(transforms.ToTensor())
     train_list.append(transforms.Normalize(mean, std))
     train_transform = transforms.Compose(train_list)
-    test_transform = transforms.Compose([
+    tlist = [
         transforms.Resize([args.resize,args.resize]),
-        transforms.ToTensor(),
-        transforms.Normalize(mean, std),
-    ])
+        transforms.ToTensor()
+    ]
+    if not args.eval_bb:
+        tlist.append(transforms.Normalize(mean, std))
+    test_transform = transforms.Compose(tlist)
     num_workers = 16
-    if args.dataset=="cifar":
+    if args.dataset=="cifar10":
         train_dataset = datasets.CIFAR10(
         args.data_dir, train=True, transform=train_transform, download=True)
         test_dataset = datasets.CIFAR10(
@@ -82,7 +98,7 @@ def get_loaders(args):
     test_loader = torch.utils.data.DataLoader(
         dataset=test_dataset,
         batch_size=2*args.batch_size,
-        shuffle=False,
+        shuffle=True if args.num_eval < len(test_dataset) else False ,
         pin_memory=True,
         num_workers=num_workers,
     )
