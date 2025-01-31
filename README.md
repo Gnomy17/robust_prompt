@@ -10,3 +10,15 @@ python train.py --model "vit_base_patch16_224_in21k" --method ADAPT --adapt-loss
 To evaluate the model simply add `--just-eval`, `--load`, and specify the path to the checkpoint with `--loadpath` to the same line above.
 -------
 Cite our work:
+```
+@article{
+eskandar2025adapt,
+title={{ADAPT} to Robustify Prompt Tuning Vision Transformers},
+author={Masih Eskandar and Tooba Imtiaz and Zifeng Wang and Jennifer Dy},
+journal={Transactions on Machine Learning Research},
+issn={2835-8856},
+year={2025},
+url={https://openreview.net/forum?id=bZzXgheUSD},
+note={}
+}
+```
